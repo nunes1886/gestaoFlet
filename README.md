@@ -30,6 +30,43 @@ Sistema de gestão desktop desenvolvido em **Python** e **Flet**, focado no cont
 Siga os passos abaixo para baixar e configurar o projeto do zero:
 
 ### 1. Clonar o repositório
-```bash
+'''bash
 git clone [https://github.com/nunes1886/gestaoFlet.git](https://github.com/nunes1886/gestaoFlet.git)
 cd gestaoFlet
+
+### 2. Criar e ativar o Ambiente Virtual
+É recomendável usar um ambiente virtual para não conflitar bibliotecas.
+
+No Windows:
+'''Bash
+
+python -m venv venv
+.\venv\Scripts\activate
+
+No Linux/Mac:
+'''Bash
+
+python3 -m venv venv
+source venv/bin/activate
+
+### 3. Instalar as dependências
+'''Bash
+
+pip install -r requirements.txt
+### 4. Configurar o Banco de Dados
+Na primeira vez, rode este script para criar as tabelas:
+
+'''Bash
+
+python reset_banco.py
+### 5. Rodar o Sistema
+'''Bash
+
+python main.py
+👤 Usuário Padrão (Admin)
+Caso o sistema peça login na primeira execução:
+
+Usuário: admin
+Senha: admin123
+
+Desenvolvido por [Gledson_Nunes]
