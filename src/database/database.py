@@ -60,7 +60,9 @@ class OrdemServico(Base):
     forma_pagamento = Column(String)
     
     # Campo atualizado para bater com a tela de Vendas
-    observacoes = Column(String, nullable=True) 
+    observacoes = Column(String, nullable=True)
+
+    imagem_os = Column(String, nullable=True) 
     
     # Relacionamentos
     cliente = relationship("Cliente", back_populates="ordens_servico")
@@ -102,6 +104,8 @@ class MovimentacaoEstoque(Base):
     tipo = Column(String) 
     quantidade = Column(Float)
     data = Column(DateTime, default=datetime.now)
+
+    estoque = relationship("Estoque")
 
 # --- CONFIGURAÇÕES DO SISTEMA ---
 class Configuracao(Base):
