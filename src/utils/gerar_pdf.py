@@ -1,156 +1,96 @@
 from fpdf import FPDF
-from datetime import datetime
 import os
-
-class PDF_OS(FPDF):
-    def header(self):
-        # Cabeçalho Simples
-        self.set_font('Helvetica', 'B', 15)
-        self.cell(0, 8, 'GestãoPro - Comunicação Visual', ln=True, align='C')
-        self.set_font('Helvetica', '', 9)
-        self.cell(0, 5, 'Rua da Gráfica, 123 - Centro | (79) 99999-9999', ln=True, align='C')
-        self.ln(5)
-
-    def footer(self):
-        self.set_y(-15)
-        self.set_font('Helvetica', 'I', 8)
-        self.cell(0, 10, f'Pagina {self.page_no()}', 0, 0, 'C')
-
-def gerar_conteudo_pagina(pdf, os_obj, modo_producao=False):
-    # --- FAIXA TÍTULO ---
-    titulo = "ORDEM DE SERVIÇO (PRODUÇÃO)" if modo_producao else f"ORDEM DE SERVIÇO {os_obj.id:06d}"
-    
-    pdf.set_fill_color(220, 220, 220)
-    pdf.set_font('Helvetica', 'B', 12)
-    pdf.cell(0, 8, titulo, ln=True, align='L', fill=True)
-    pdf.ln(3)
-    
-    # --- DADOS DO CLIENTE ---
-    pdf.set_font('Helvetica', 'B', 10)
-    pdf.cell(25, 5, "Cliente:", align='L')
-    pdf.set_font('Helvetica', '', 10)
-    pdf.cell(100, 5, os_obj.cliente.nome_empresa[:45], align='L')
-    
-    pdf.set_font('Helvetica', 'B', 10)
-    pdf.cell(15, 5, "Data:", align='L')
-    pdf.set_font('Helvetica', '', 10)
-    pdf.cell(0, 5, os_obj.data_criacao.strftime("%d/%m/%Y %H:%M"), ln=True, align='L')
-    
-    pdf.set_font('Helvetica', 'B', 10)
-    pdf.cell(25, 5, "Telefone:", align='L')
-    pdf.set_font('Helvetica', '', 10)
-    pdf.cell(0, 5, os_obj.cliente.telefone or "-", ln=True, align='L')
-    pdf.ln(3)
-
-    # --- TABELA DE ITENS ---
-    pdf.set_fill_color(240, 240, 240)
-    pdf.set_font('Helvetica', 'B', 9)
-    
-    # Define larguras baseadas no modo (se tem preço ou não)
-    if modo_producao:
-        # Sem colunas de preço -> Aumenta descrição e medidas
-        w_desc = 100
-        w_med = 30
-        w_qtd = 30
-        w_unit = 0 # Oculto
-        w_total = 0 # Oculto
-    else:
-        w_desc = 70
-        w_med = 25
-        w_qtd = 15
-        w_unit = 35
-        w_total = 35
-
-    pdf.cell(w_desc, 6, "Descrição", border=1, fill=True)
-    pdf.cell(w_med, 6, "Medidas", border=1, align='C', fill=True)
-    pdf.cell(w_med, 6, "Qtd", border=1, align='C', fill=True) # Usando w_med para produção ficar grande
-    
-    if not modo_producao:
-        pdf.cell(w_unit, 6, "Unit (R$)", border=1, align='C', fill=True)
-        pdf.cell(w_total, 6, "Total (R$)", border=1, align='C', fill=True)
-    
-    pdf.ln()
-
-    # --- ITENS LOOP ---
-    pdf.set_font('Helvetica', '', 10) # Fonte maior na produção
-    
-    for item in os_obj.itens:
-        # Altura da linha dinâmica
-        h_line = 8 
-        
-        pdf.cell(w_desc, h_line, item.descricao_item[:40], border=1)
-        pdf.cell(w_med, h_line, f"{item.largura:.2f}x{item.altura:.2f}", border=1, align='C')
-        pdf.cell(w_med, h_line, str(item.quantidade), border=1, align='C') # Reusa largura
-        
-        if not modo_producao:
-            pdf.cell(w_unit, h_line, f"{item.preco_unitario:.2f}", border=1, align='R')
-            pdf.cell(w_total, h_line, f"{item.total_item:.2f}", border=1, align='R')
-        
-        pdf.ln()
-
-    pdf.ln(5)
-
-    # --- FINANCEIRO (SÓ APARECE NA VIA ADMINISTRATIVA) ---
-    if not modo_producao:
-        pdf.set_font('Helvetica', '', 10)
-        pdf.cell(145, 6, "TOTAL GERAL:", border=0, align='R')
-        pdf.set_font('Helvetica', 'B', 12)
-        pdf.cell(45, 6, f"R$ {os_obj.valor_total:.2f}", border=1, align='R', ln=True)
-        
-        pdf.set_font('Helvetica', '', 10)
-        pdf.cell(145, 6, "Sinal Pago:", border=0, align='R')
-        pdf.cell(45, 6, f"R$ {os_obj.valor_pago:.2f}", border=1, align='R', ln=True)
-        
-        falta = os_obj.valor_total - os_obj.valor_pago
-        pdf.set_font('Helvetica', 'B', 10)
-        pdf.cell(145, 6, "RESTANTE:", border=0, align='R')
-        pdf.cell(45, 6, f"R$ {falta:.2f}", border=1, align='R', ln=True)
-        pdf.ln(5)
-
-    # --- OBSERVAÇÕES E ARTE ---
-    if os_obj.observacoes:
-        pdf.set_fill_color(230, 230, 230)
-        pdf.set_font('Helvetica', 'B', 10)
-        pdf.cell(0, 6, "OBSERVAÇÕES / ACABAMENTO:", ln=True, fill=True)
-        pdf.set_font('Helvetica', '', 11) # Fonte maior para produção ler bem
-        pdf.multi_cell(0, 6, os_obj.observacoes, border=1)
-        pdf.ln(5)
-
-    # --- IMAGEM ---
-    if os_obj.imagem_os and os.path.exists(os_obj.imagem_os):
-        pdf.set_font('Helvetica', 'B', 9)
-        pdf.cell(0, 6, "LAYOUT / ARTE:", ln=True)
-        try:
-            # Centraliza a imagem e define tamanho máximo
-            # Largura máx 120mm
-            pdf.image(os_obj.imagem_os, x=45, w=120) 
-        except:
-            pdf.cell(0, 10, "[Erro ao carregar imagem]", ln=True)
-            
-    pdf.ln(10)
-    
-    # --- ASSINATURA ---
-    if not modo_producao:
-        pdf.line(20, pdf.get_y(), 100, pdf.get_y())
-        pdf.set_font('Helvetica', '', 8)
-        pdf.cell(0, 4, "Assinatura do Cliente / Responsável", ln=True)
-
+from src.database.database import get_session, Empresa
 
 def gerar_pdf_venda(os_obj):
-    pdf = PDF_OS()
-    
-    # PÁGINA 1: VIA ADMINISTRATIVA (COM VALORES)
-    pdf.add_page()
-    gerar_conteudo_pagina(pdf, os_obj, modo_producao=False)
-    
-    # PÁGINA 2: VIA PRODUÇÃO (SEM VALORES)
-    pdf.add_page()
-    gerar_conteudo_pagina(pdf, os_obj, modo_producao=True)
+    # Busca dados da empresa
+    session = get_session()
+    empresa = session.query(Empresa).first()
+    nome_empresa = empresa.nome_fantasia if empresa else "Minha Gráfica"
+    endereco_empresa = empresa.endereco if empresa else ""
+    telefone_empresa = empresa.telefone if empresa else ""
+    caminho_logo = empresa.caminho_logo if empresa and empresa.caminho_logo else ""
+    session.close()
 
-    # Salva e Abre
-    nome_arq = f"OS_{os_obj.id}.pdf"
-    pdf.output(nome_arq)
+    pdf = FPDF()
+    pdf.add_page()
+    
+    # --- LOGO E CABEÇALHO ---
+    if caminho_logo and os.path.exists(caminho_logo):
+        try:
+            pdf.image(caminho_logo, x=10, y=8, w=30)
+            pdf.set_xy(45, 10)
+        except: pass
+            
+    pdf.set_font("Arial", "B", 16)
+    pdf.cell(0, 10, f"Ordem de Servico #{os_obj.id}", ln=True, align="R")
+    
+    x_inicial = 45 if caminho_logo and os.path.exists(caminho_logo) else 10
+    pdf.set_x(x_inicial)
+    
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 10, nome_empresa, ln=True)
+    
+    pdf.set_font("Arial", "", 10)
+    pdf.set_x(x_inicial)
+    pdf.cell(0, 5, f"{endereco_empresa} | {telefone_empresa}", ln=True)
+    pdf.ln(15)
+
+    # --- DADOS DO CLIENTE ---
+    pdf.set_fill_color(240, 240, 240)
+    pdf.set_font("Arial", "B", 11)
+    pdf.cell(0, 8, "Dados do Cliente", 1, 1, 'L', fill=True)
+    
+    pdf.set_font("Arial", "", 11)
+    pdf.cell(0, 8, f"Cliente: {os_obj.cliente.nome_empresa}", 1, 1)
+    if os_obj.motivo:
+        pdf.cell(0, 8, f"Ref/Evento: {os_obj.motivo}", 1, 1)
+        
+    pdf.ln(5)
+
+    # --- ITENS ---
+    pdf.set_font("Arial", "B", 10)
+    pdf.cell(80, 8, "Produto", 1, 0, 'C', fill=True)
+    pdf.cell(30, 8, "Medidas", 1, 0, 'C', fill=True)
+    pdf.cell(20, 8, "Qtd", 1, 0, 'C', fill=True)
+    pdf.cell(30, 8, "Unit", 1, 0, 'C', fill=True)
+    pdf.cell(30, 8, "Total", 1, 1, 'C', fill=True)
+    
+    pdf.set_font("Arial", "", 10)
+    for item in os_obj.itens:
+        medidas = f"{item.largura}x{item.altura}" if item.largura > 0 else "-"
+        pdf.cell(80, 8, item.descricao_item[:35], 1)
+        pdf.cell(30, 8, medidas, 1, 0, 'C')
+        pdf.cell(20, 8, str(item.quantidade), 1, 0, 'C')
+        pdf.cell(30, 8, f"R$ {item.preco_unitario:.2f}", 1, 0, 'R')
+        pdf.cell(30, 8, f"R$ {item.total_item:.2f}", 1, 1, 'R')
+        
+    pdf.ln(5)
+    
+    # --- TOTAIS ---
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(130, 10, "", 0)
+    pdf.cell(30, 10, "Total:", 0)
+    pdf.cell(30, 10, f"R$ {os_obj.valor_total:.2f}", 0, 1, 'R')
+    
+    if os_obj.valor_pago > 0:
+        pdf.cell(130, 10, "", 0)
+        pdf.cell(30, 10, "Pago:", 0)
+        pdf.cell(30, 10, f"R$ {os_obj.valor_pago:.2f}", 0, 1, 'R')
+        
+        pdf.set_text_color(200, 0, 0)
+        pdf.cell(130, 10, "", 0)
+        pdf.cell(30, 10, "Restante:", 0)
+        pdf.cell(30, 10, f"R$ {os_obj.valor_total - os_obj.valor_pago:.2f}", 0, 1, 'R')
+        pdf.set_text_color(0, 0, 0)
+
+    # --- SALVAR E ABRIR ---
+    if not os.path.exists("os_pdfs"): os.makedirs("os_pdfs")
+    caminho_arquivo = f"os_pdfs/OS_{os_obj.id}.pdf"
+    pdf.output(caminho_arquivo)
+    
+    # Tenta abrir o arquivo automaticamente (Windows)
     try:
-        os.startfile(nome_arq)
-    except:
-        pass # Linux/Mac usam comandos diferentes, mas focaremos no Windows
+        os.startfile(os.path.abspath(caminho_arquivo))
+    except Exception as e:
+        print(f"Erro ao abrir PDF automaticamente: {e}")
