@@ -1,25 +1,19 @@
 import flet as ft
 from src.database.database import get_session, Usuario, Configuracao, OrdemServico
-from src.ui import Sidebar
-# Importação das Views (Telas)
-from src.views.vendas import ViewNovaVenda 
-from src.views.producao import ViewProducao
-from src.views.estoque import ViewEstoque
-from src.views.financeiro import ViewFinanceiro
-from src.views.clientes import ViewClientes
+import hashlib
 import sys
 import os
 import warnings
 
-# Silencia avisos de versão para limpar o terminal
-warnings.filterwarnings("ignore")
+# --- IMPORTAÇÃO DAS VIEWS ---
+from src.views.vendas import ViewNovaVenda 
+from src.views.producao import ViewProducao
+from src.views.estoque import ViewEstoque
+from src.views.financeiro import ViewFinanceiro 
+from src.views.clientes import ViewClientes
 
-def resource_path(relative_path):
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.abspath(".")
-    return os.path.join(base_path, relative_path)
+# Silencia avisos de versão
+warnings.filterwarnings("ignore")
 
 def main(page: ft.Page):
     # --- CONFIGURAÇÃO DA JANELA ---
@@ -27,176 +21,208 @@ def main(page: ft.Page):
     page.window_width = 1200
     page.window_height = 800
     page.padding = 0
+    page.bgcolor = ft.Colors.GREY_100
     page.theme_mode = ft.ThemeMode.LIGHT 
 
     # --- ÁREA DE CONTEÚDO DINÂMICO ---
-    # Aqui é onde as telas (Dashboard, Vendas, etc) serão carregadas
-    area_conteudo = ft.Container(expand=True, bgcolor=ft.colors.GREY_100)
+    area_conteudo = ft.Container(expand=True, padding=20)
 
-    # --- FUNÇÃO DE NAVEGAÇÃO CENTRAL ---
-    def navegar_para(nome_tela):
-        # Limpa o conteúdo atual para carregar o novo
-        area_conteudo.content = None
-        
+    # --- FUNÇÃO DE NAVEGAÇÃO ---
+    def navegar_para(e, nome_tela):
+        # Limpa visual dos botões do menu (remove destaque)
+        if isinstance(e, ft.ControlEvent):
+            for item in menu_coluna.controls:
+                if isinstance(item, ft.Container):
+                    item.bgcolor = "transparent"
+            # Destaca o clicado
+            e.control.bgcolor = ft.Colors.WHITE10
+            e.control.update()
+            menu_coluna.update()
+
+        # Troca o conteúdo
+        area_conteudo.content = ft.Container(alignment=ft.alignment.center, content=ft.ProgressRing())
+        page.update()
+
         if nome_tela == "Dashboard":
             area_conteudo.content = criar_dashboard_content()
         elif nome_tela == "Nova Venda":
             area_conteudo.content = ViewNovaVenda(page)
-        elif nome_tela == "Clientes":        # <--- Adicionado Clientes
+        elif nome_tela == "Clientes":
             area_conteudo.content = ViewClientes(page)
         elif nome_tela == "Produção":
             area_conteudo.content = ViewProducao(page)
-        elif nome_tela == "Estoque":    # <--- Adicionado Estoque
+        elif nome_tela == "Estoque":
             area_conteudo.content = ViewEstoque(page)
-        elif nome_tela == "Financeiro":       # <--- Adicionado Financeiro
-            area_conteudo.content = ViewFinanceiro(page)
+        elif nome_tela == "Financeiro":
+            area_conteudo.content = ViewFinanceiro(page) # Descomente quando criar o arquivo
+            # area_conteudo.content = ft.Text("Módulo Financeiro em Desenvolvimento...", size=20)
         elif nome_tela == "Sair":
-            tela_login() # Volta para o login
+            tela_login()
             return
 
-        area_conteudo.update()
+        page.update()
 
-    # --- CONTEÚDO DA DASHBOARD (Componente) ---
+    # --- COMPONENTE MENU LATERAL (SIDEBAR) ---
+    menu_coluna = ft.Column(spacing=5) # Referência para atualizar os botões
+
+    def CriarSidebar():
+        def item_menu(icone, texto, destino):
+            return ft.Container(
+                content=ft.Row([
+                    ft.Icon(icone, color=ft.Colors.WHITE70, size=20),
+                    ft.Text(texto, color=ft.Colors.WHITE, size=14, weight="w500")
+                ], spacing=15),
+                padding=ft.padding.symmetric(horizontal=20, vertical=15),
+                border_radius=8,
+                ink=True,
+                on_click=lambda e: navegar_para(e, destino)
+            )
+
+        # Popula a coluna de botões
+        menu_coluna.controls = [
+            item_menu(ft.Icons.DASHBOARD, "Dashboard", "Dashboard"),
+            item_menu(ft.Icons.SHOPPING_CART, "Nova Venda", "Nova Venda"),
+            item_menu(ft.Icons.PEOPLE, "Clientes", "Clientes"),
+            item_menu(ft.Icons.PRECISION_MANUFACTURING, "Produção", "Produção"),
+            item_menu(ft.Icons.INVENTORY_2, "Estoque", "Estoque"),
+            item_menu(ft.Icons.ATTACH_MONEY, "Financeiro", "Financeiro"),
+            ft.Divider(color=ft.Colors.WHITE24),
+            item_menu(ft.Icons.EXIT_TO_APP, "Sair", "Sair"),
+        ]
+
+        return ft.Container(
+            width=260,
+            bgcolor="#263238", # Cor escura do menu
+            padding=10,
+            content=ft.Column([
+                # Cabeçalho do Menu
+                ft.Container(
+                    padding=20,
+                    content=ft.Row([
+                        ft.Icon(ft.Icons.DASHBOARD_CUSTOMIZE, color=ft.Colors.BLUE_400),
+                        ft.Text("GestãoPro", size=22, weight="bold", color=ft.Colors.WHITE)
+                    ])
+                ),
+                ft.Divider(color=ft.Colors.WHITE24, height=1),
+                ft.Container(height=20),
+                menu_coluna
+            ])
+        )
+
+    # --- CONTEÚDO DA DASHBOARD ---
     def criar_dashboard_content():
         session = get_session()
-        # Consultas reais ao banco
-        total_os = session.query(OrdemServico).count()
-        producao_os = session.query(OrdemServico).filter(OrdemServico.status.in_(['Impressão', 'Acabamento', 'Fila', 'Rodando'])).count()
-        concluidas_os = session.query(OrdemServico).filter_by(status='Entregue').count()
+        try:
+            total_os = session.query(OrdemServico).count()
+            producao_os = session.query(OrdemServico).filter(OrdemServico.status.in_(['Impressão', 'Acabamento', 'Fila'])).count()
+            concluidas_os = session.query(OrdemServico).filter_by(status='Entregue').count()
+        except:
+            total_os, producao_os, concluidas_os = 0, 0, 0
         session.close()
 
-        def card_topo(titulo, valor, cor_texto, cor_borda):
+        def card_topo(titulo, valor, cor_texto, cor_bg_icone, icone):
             return ft.Container(
-                content=ft.Column([
-                        ft.Text(titulo, color=ft.colors.GREY_600),
-                        ft.Text(str(valor), size=40, weight="bold", color=cor_texto)
-                    ], alignment="center", horizontal_alignment="center"),
-                width=250, height=120, bgcolor="white",
-                border=ft.border.all(1, color=cor_borda), border_radius=10, padding=20, alignment=ft.alignment.center
+                content=ft.Row([
+                    ft.Container(
+                        content=ft.Icon(icone, color=cor_texto, size=30),
+                        bgcolor=cor_bg_icone, padding=15, border_radius=10
+                    ),
+                    ft.Column([
+                        ft.Text(titulo, color=ft.Colors.GREY_600, size=12),
+                        ft.Text(str(valor), size=28, weight="bold", color=ft.Colors.BLACK87)
+                    ], spacing=2)
+                ], alignment="start"),
+                width=280, height=100, bgcolor="white",
+                shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.BLACK12),
+                border_radius=12, padding=20
             )
 
         return ft.Container(
-            padding=30,
+            padding=10,
             content=ft.Column([
-                    ft.Text("Dashboard Gerencial", size=30, weight="bold", color=ft.colors.BLUE_GREY_900),
-                    ft.Divider(color="transparent"),
-                    ft.Row([
-                            card_topo("Total Cadastrado", total_os, ft.colors.BLUE_600, ft.colors.BLUE_200),
-                            card_topo("Em Produção", producao_os, ft.colors.ORANGE_600, ft.colors.ORANGE_200),
-                            card_topo("Concluídas", concluidas_os, ft.colors.GREEN_600, ft.colors.GREEN_200),
-                        ], alignment="spaceBetween"),
-                    ft.Divider(color="transparent"),
-                    ft.Container(
-                        height=300, bgcolor="white", border_radius=10, alignment=ft.alignment.center,
-                        content=ft.Text("Gráficos de Faturamento (Em breve)", color=ft.colors.GREY_400)
-                    )
-                ])
+                ft.Text("Visão Geral", size=30, weight="bold", color=ft.Colors.BLUE_GREY_900),
+                ft.Divider(color="transparent"),
+                ft.Row([
+                    card_topo("Total Vendas", total_os, ft.Colors.BLUE_600, ft.Colors.BLUE_50, ft.Icons.RECEIPT_LONG),
+                    card_topo("Em Produção", producao_os, ft.Colors.ORANGE_600, ft.Colors.ORANGE_50, ft.Icons.PRECISION_MANUFACTURING),
+                    card_topo("Entregues", concluidas_os, ft.Colors.GREEN_600, ft.Colors.GREEN_50, ft.Icons.CHECK_CIRCLE),
+                ], wrap=True, alignment="spaceBetween"),
+                
+                ft.Divider(height=40, color="transparent"),
+                
+                ft.Container(
+                    height=300, bgcolor="white", border_radius=10, alignment=ft.alignment.center,
+                    shadow=ft.BoxShadow(blur_radius=5, color=ft.Colors.BLACK12),
+                    content=ft.Text("Gráficos de Faturamento (Em breve)", color=ft.Colors.GREY_400)
+                )
+            ])
         )
 
     # --- FUNÇÃO: CARREGAR O SISTEMA PÓS-LOGIN ---
     def carregar_sistema_principal():
-        page.clean() # Limpa a tela de login
+        page.clean()
+        page.bgcolor = ft.Colors.GREY_100
         
-        # Cria o Menu Lateral
-        menu = Sidebar(page)
+        menu = CriarSidebar()
         
-        # Carrega a Dashboard como tela inicial
+        # Carrega Dashboard Inicialmente
         area_conteudo.content = criar_dashboard_content()
         
-        # Monta o Layout Principal (Menu na Esquerda + Conteúdo na Direita)
         page.add(
             ft.Row(
-                [
-                    menu, 
-                    area_conteudo 
-                ],
+                [menu, area_conteudo],
                 expand=True,
                 spacing=0
             )
         )
         
-        # --- VINCULAÇÃO DOS BOTÕES DO MENU ---
-        # A estrutura é: menu -> content (Column) -> controls (Lista de botões)
-        # Índices baseados na ordem do arquivo ui.py:
-        coluna_botoes = menu.content.controls
-        
-        # [0]=Header, [1]=Divider
-        # [2]=Dashboard
-        coluna_botoes[2].on_click = lambda e: navegar_para("Dashboard")
-        
-        # [3]=Nova Venda
-        coluna_botoes[3].on_click = lambda e: navegar_para("Nova Venda")
-        
-        # [4]=Clientes
-        coluna_botoes[4].on_click = lambda e: navegar_para("Clientes")
-        # [5]=Produção
-        coluna_botoes[5].on_click = lambda e: navegar_para("Produção")
-        
-        # [6]=Estoque
-        coluna_botoes[6].on_click = lambda e: navegar_para("Estoque")
-
-        # [7]=Financeiro
-        coluna_botoes[7].on_click = lambda e: navegar_para("Financeiro")
-        
-        # [-1]=Botão Sair (O último da lista)
-        coluna_botoes[-1].on_click = lambda e: navegar_para("Sair")
-        
+        # Simula clique visual no primeiro botão
+        menu_coluna.controls[0].bgcolor = ft.Colors.WHITE10
         page.update()
 
-    # --- TELA DE LOGIN (Visual Profissional) ---
+    # --- TELA DE LOGIN (LAYOUT SPLIT - Azul/Branco) ---
     def tela_login():
         page.clean()
-        page.bgcolor = ft.colors.WHITE
+        page.bgcolor = ft.Colors.WHITE
         
-        # Carrega dados da empresa (Logo)
-        session = get_session()
-        nome_empresa = "Carregando..."
-        logo_src = ""
-        try:
-            config = session.query(Configuracao).first()
-            if not config:
-                config = Configuracao(nome_fantasia="Sua Gráfica Aqui")
-                session.add(config)
-                session.commit()
-            nome_empresa = config.nome_fantasia
-            logo_src = config.caminho_logo if config.caminho_logo and os.path.exists(config.caminho_logo) else ""
-        except: pass
-        finally: session.close()
-
         # Elementos do Formulário
         txt_usuario = ft.TextField(
             label="Usuário", width=320, height=50, 
             bgcolor="white", border_radius=8, 
-            prefix_icon=ft.icons.PERSON, 
-            border_color=ft.colors.GREY_400
+            prefix_icon=ft.Icons.PERSON, 
+            border_color=ft.Colors.GREY_400
         )
         
         txt_senha = ft.TextField(
             label="Senha", password=True, width=320, height=50, 
             bgcolor="white", border_radius=8, 
-            prefix_icon=ft.icons.LOCK, 
-            border_color=ft.colors.GREY_400,
-            can_reveal_password=True
+            prefix_icon=ft.Icons.LOCK, 
+            border_color=ft.Colors.GREY_400,
+            can_reveal_password=True,
+            on_submit=lambda e: realizar_login(e)
         )
         
-        lbl_erro = ft.Text("", color=ft.colors.RED_600, size=13, weight="bold")
+        lbl_erro = ft.Text("", color=ft.Colors.RED_600, size=13, weight="bold")
 
         def realizar_login(e):
             user = txt_usuario.value
             senha = txt_senha.value
             
-            # Validação simples
             if not user or not senha:
                 lbl_erro.value = "Preencha todos os campos."
                 page.update()
                 return
 
+            # Criptografia para conferir com o banco
+            senha_bytes = senha.encode('utf-8')
+            hash_obj = hashlib.sha256(senha_bytes)
+            senha_cripto = hash_obj.hexdigest()
+
             session = get_session()
-            usuario_db = session.query(Usuario).filter_by(usuario=user, senha_hash=senha).first()
+            usuario_db = session.query(Usuario).filter_by(usuario=user, senha_hash=senha_cripto).first()
             session.close()
 
             if usuario_db:
-                # Login Sucesso -> Vai para o Sistema
                 carregar_sistema_principal()
             else:
                 lbl_erro.value = "Usuário ou senha incorretos."
@@ -205,31 +231,29 @@ def main(page: ft.Page):
         btn_entrar = ft.ElevatedButton(
             text="ACESSAR SISTEMA", width=320, height=50,
             style=ft.ButtonStyle(
-                color=ft.colors.WHITE, 
-                bgcolor=ft.colors.BLUE_900, 
+                color=ft.Colors.WHITE, 
+                bgcolor=ft.Colors.BLUE_900, 
                 shape=ft.RoundedRectangleBorder(radius=8)
             ),
             on_click=realizar_login
         )
 
-        # --- MONTAGEM DO LAYOUT DE LOGIN (DIVIDIDO) ---
-        
         # Coluna da Direita (Formulário)
         container_form = ft.Container(
             expand=1.2,
-            bgcolor=ft.colors.WHITE,
+            bgcolor=ft.Colors.WHITE,
             padding=40,
             content=ft.Column(
                 [
-                    ft.Text("Bem-vindo de volta", size=28, weight="bold", color=ft.colors.BLUE_GREY_900),
-                    ft.Text("Insira suas credenciais para acessar o painel.", size=14, color=ft.colors.GREY_600),
+                    ft.Text("Bem-vindo de volta", size=28, weight="bold", color=ft.Colors.BLUE_GREY_900),
+                    ft.Text("Insira suas credenciais para acessar o painel.", size=14, color=ft.Colors.GREY_600),
                     ft.Divider(height=40, color="transparent"),
                     
-                    ft.Text("Usuário", size=12, weight="bold", color=ft.colors.GREY_700),
+                    ft.Text("Usuário", size=12, weight="bold", color=ft.Colors.GREY_700),
                     txt_usuario,
                     ft.Divider(height=5, color="transparent"),
                     
-                    ft.Text("Senha", size=12, weight="bold", color=ft.colors.GREY_700),
+                    ft.Text("Senha", size=12, weight="bold", color=ft.Colors.GREY_700),
                     txt_senha,
                     
                     ft.Divider(height=10, color="transparent"),
@@ -239,7 +263,7 @@ def main(page: ft.Page):
                     btn_entrar,
                     
                     ft.Divider(height=30, color="transparent"),
-                    ft.Row([ft.Text(f"Licenciado para: {nome_empresa}", size=11, color=ft.colors.GREY_400)], alignment="center")
+                    ft.Row([ft.Text("TechSolutions © 2026", size=11, color=ft.Colors.GREY_400)], alignment="center")
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
                 horizontal_alignment=ft.CrossAxisAlignment.START
@@ -249,12 +273,12 @@ def main(page: ft.Page):
         # Coluna da Esquerda (Capa Azul)
         container_capa = ft.Container(
             expand=1,
-            bgcolor=ft.colors.BLUE_900,
+            bgcolor=ft.Colors.BLUE_900,
             padding=40,
             alignment=ft.alignment.center,
             content=ft.Column(
                 [
-                    ft.Icon(ft.icons.DASHBOARD_CUSTOMIZE, size=100, color="white") if not logo_src else ft.Image(src=logo_src, width=200),
+                    ft.Icon(ft.Icons.DASHBOARD_CUSTOMIZE, size=100, color="white"),
                     ft.Divider(height=20, color="transparent"),
                     ft.Text("GestãoPro", size=30, weight="bold", color="white"),
                     ft.Text("Controle total para Comunicação Visual", size=16, color="white70", text_align="center"),
@@ -276,4 +300,4 @@ def main(page: ft.Page):
     tela_login()
 
 if __name__ == "__main__":
-    ft.app(target=main, view=ft.WEB_BROWSER)
+    ft.app(target=main, view=ft.WEB_BROWSER, assets_dir="assets")

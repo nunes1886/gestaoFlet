@@ -1,68 +1,60 @@
 import os
-import time
-from src.database.database import Base, engine, ProdutoServico, Usuario
-from sqlalchemy.orm import sessionmaker
+import hashlib
+# Importamos o DATABASE_URL para saber exatamente qual arquivo apagar
+from src.database.database import Base, engine, Session, Usuario, ProdutoServico, Cliente, Material, MovimentacaoEstoque, DATABASE_URL
 
 def resetar_tudo():
     print("--- INICIANDO RESET DO BANCO DE DADOS ---")
-
-    # 1. Identificar o arquivo
-    db_file = "app.db"
-    if engine.url.drivername == 'sqlite' and engine.url.database:
-        db_file = engine.url.database
-
-    print(f"Alvo detectado: {db_file}")
-
-    # --- O SEGREDO ESTÁ AQUI ---
-    # Força o Python a soltar o arquivo antes de tentar apagar
-    engine.dispose()
-    time.sleep(1) # Espera 1 segundo para o Windows liberar o arquivo
-    # ---------------------------
-
-    # 2. Apagar o arquivo
-    if os.path.exists(db_file):
+    
+    # 1. Identifica o nome do arquivo do banco
+    nome_arquivo_db = DATABASE_URL.replace("sqlite:///", "")
+    
+    # 2. Apagar arquivo do banco se existir (Onde ocorre a limpeza real)
+    if os.path.exists(nome_arquivo_db):
         try:
-            os.remove(db_file)
-            print("✅ Banco de dados antigo APAGADO com sucesso!")
+            os.remove(nome_arquivo_db)
+            print(f"✅ Arquivo '{nome_arquivo_db}' APAGADO com sucesso!")
         except PermissionError:
-            print("❌ ERRO: O arquivo ainda está preso pelo Windows.")
-            print("Tente reiniciar o VS Code e rodar novamente.")
+            print(f"❌ ERRO: O arquivo '{nome_arquivo_db}' está travado/aberto.")
+            print("   -> Feche o terminal, feche a aplicação e tente novamente.")
             return
-        except Exception as e:
-            print(f"❌ Erro ao apagar: {e}")
-            return
-    else:
-        print("⚠️ Arquivo não existia (caminho livre).")
-
-    # 3. Recriar tabelas
+    
+    # 3. Recriar Tabelas
     print("🔨 Criando novas tabelas...")
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(engine)
     print("✅ Tabelas recriadas.")
-
-    # 4. Inserir Dados Iniciais
-    Session = sessionmaker(bind=engine)
+    
     session = Session()
+
+    # 4. Criar Usuário Admin (COM CRIPTOGRAFIA CORRETA)
+    print("👤 Criando usuário admin...")
+    senha_texto_puro = "admin"
     
-    # Produtos de Teste
-    if session.query(ProdutoServico).count() == 0:
-        print("📦 Cadastrando produtos com estoque...")
-        produtos = [
-            ProdutoServico(nome="Lona 440g (M²)", preco_venda=40.0, preco_revenda=30.0, categoria="Impressão", estoque_atual=50, estoque_minimo=10),
-            ProdutoServico(nome="Adesivo Vinil (M²)", preco_venda=55.0, preco_revenda=45.0, categoria="Impressão", estoque_atual=5, estoque_minimo=10),
-            ProdutoServico(nome="Criação de Arte", preco_venda=50.0, preco_revenda=0.0, categoria="Criação", estoque_atual=999, estoque_minimo=0),
-            ProdutoServico(nome="Ilhós (Unid)", preco_venda=1.0, preco_revenda=0.50, categoria="Acabamento", estoque_atual=500, estoque_minimo=100),
-        ]
-        session.add_all(produtos)
-    
-    # Criar Admin usando a lógica que você já tem no criar_usuario.py
-    if session.query(Usuario).filter_by(usuario="admin").count() == 0:
-        print("👤 Recriando usuário Admin...")
-        admin = Usuario(nome="Administrador Master", usuario="admin", senha_hash="admin123", cargo="admin")
-        session.add(admin)
+    # Gera o hash SHA256 da senha 'admin'
+    senha_bytes = senha_texto_puro.encode('utf-8')
+    hash_obj = hashlib.sha256(senha_bytes)
+    senha_cripto = hash_obj.hexdigest()
+
+    # Salva no banco com o nome de coluna correto: senha_hash
+    admin = Usuario(nome="Administrador", usuario="admin", senha_hash=senha_cripto)
+    session.add(admin)
+
+    # 5. Criar Clientes Exemplo
+    print("🤝 Criando clientes...")
+    cli1 = Cliente(nome_empresa="Cliente Balcão", telefone="(79) 99999-9999")
+    cli2 = Cliente(nome_empresa="Loja do Centro", telefone="(79) 88888-8888", documento="12345678000199")
+    session.add_all([cli1, cli2])
+
+    # 6. Criar Materiais de Estoque (Insumos)
+    print("🏭 Criando estoque de insumos...")
+    m1 = Material(nome="Rolo Lona 440g", unidade="Rolo", quantidade=2.0, estoque_minimo=1.0)
+    m2 = Material(nome="Tinta Solvente Cyan", unidade="Litro", quantidade=5.0, estoque_minimo=2.0)
+    session.add_all([m1, m2])
 
     session.commit()
     session.close()
-    print("\n🚀 TUDO PRONTO! Banco atualizado com suporte a Estoque.")
+    print("\n✅ TUDO PRONTO! A senha do usuário 'admin' foi redefinida corretamente.")
+    print("👉 Pode rodar 'python main.py'")
 
 if __name__ == "__main__":
     resetar_tudo()
