@@ -8,40 +8,92 @@ from reset_banco import resetar_tudo
 
 def ViewConfiguracao(page: ft.Page):
     
-    caminho_logo_temp = ft.Ref[str]()
-    caminho_icon_temp = ft.Ref[str]()
-    
-    # --- HELPER: CORRIGE CAMINHO DA IMAGEM ---
-    def resolver_src(caminho):
-        if not caminho or not os.path.exists(caminho): return ""
-        return os.path.basename(caminho)
-    
-    # --- PRODUTOS: VARIAVEIS ---
+    # --- HELPER: VERIFICA SE A LOGO EXISTE ---
+    def get_logo_widget():
+        caminho_arquivo = "assets/logo.png"
+        if os.path.exists(caminho_arquivo):
+            src_path = f"logo.png?v={datetime.datetime.now().timestamp()}"
+            return ft.Image(src=src_path, width=100, height=100, fit=ft.ImageFit.CONTAIN)
+        else:
+            return ft.Column([
+                ft.Icon(ft.Icons.IMAGE_NOT_SUPPORTED, size=50, color=ft.Colors.GREY_400),
+                ft.Text("Sem logo.png", size=10, color=ft.Colors.GREY_400)
+            ], alignment="center", horizontal_alignment="center")
+
+    # --- HELPER: VERIFICA SE O FAVICON EXISTE (NOVO) ---
+    def get_favicon_widget():
+        caminho_arquivo = "assets/favicon.png"
+        if os.path.exists(caminho_arquivo):
+            src_path = f"favicon.png?v={datetime.datetime.now().timestamp()}"
+            return ft.Image(src=src_path, width=32, height=32, fit=ft.ImageFit.CONTAIN)
+        else:
+            return ft.Column([
+                ft.Icon(ft.Icons.tab, size=30, color=ft.Colors.GREY_400),
+                ft.Text("Sem icon", size=10, color=ft.Colors.GREY_400)
+            ], alignment="center", horizontal_alignment="center")
+
+    # --- FORMATAÇÃO (MÁSCARAS) ---
+    def formatar_telefone_blur(e):
+        v = "".join(filter(str.isdigit, e.control.value))
+        if not v: e.control.value = ""
+        elif len(v) == 11: e.control.value = f"({v[:2]}) {v[2:7]}-{v[7:]}"
+        elif len(v) == 10: e.control.value = f"({v[:2]}) {v[2:6]}-{v[6:]}"
+        else: e.control.value = v
+        e.control.update()
+
+    def formatar_cnpj_blur(e):
+        v = "".join(filter(str.isdigit, e.control.value))[:14]
+        if not v: e.control.value = ""
+        elif len(v) == 14:
+            e.control.value = f"{v[:2]}.{v[2:5]}.{v[5:8]}/{v[8:12]}-{v[12:]}"
+        else: e.control.value = v
+        e.control.update()
+
+    def limpar_formatacao_focus(e):
+        e.control.value = "".join(filter(str.isdigit, e.control.value))
+        e.control.update()
+
+    # --- TABELA DE PRODUTOS ---
     tabela_produtos = ft.DataTable(
-        heading_row_height=40,
-        column_spacing=20,
+        heading_row_height=40, column_spacing=20,
         columns=[
-            ft.DataColumn(ft.Text("Produto")),
-            ft.DataColumn(ft.Text("Venda", color="green"), numeric=True),
-            ft.DataColumn(ft.Text("Revenda", color="blue"), numeric=True),
-            ft.DataColumn(ft.Text("Ações")),
+            ft.DataColumn(ft.Text("Produto")), 
+            ft.DataColumn(ft.Text("Venda", color="green"), numeric=True), 
+            ft.DataColumn(ft.Text("Revenda", color="blue"), numeric=True), 
+            ft.DataColumn(ft.Text("Ações"))
         ], rows=[]
     )
     
-    txt_novo_nome = ft.TextField(label="Nome do Produto", expand=True, height=40, text_size=13, bgcolor="white")
-    txt_novo_venda = ft.TextField(label="Venda R$", width=100, height=40, text_size=13, bgcolor="white", keyboard_type=ft.KeyboardType.NUMBER)
-    txt_novo_revenda = ft.TextField(label="Revenda R$", width=100, height=40, text_size=13, bgcolor="white", keyboard_type=ft.KeyboardType.NUMBER)
+    txt_novo_nome = ft.TextField(label="Nome do Produto", expand=True, height=40, bgcolor="white", content_padding=10)
+    txt_novo_venda = ft.TextField(label="Venda R$", width=100, height=40, bgcolor="white", keyboard_type=ft.KeyboardType.NUMBER, content_padding=10)
+    txt_novo_revenda = ft.TextField(label="Revenda R$", width=100, height=40, bgcolor="white", keyboard_type=ft.KeyboardType.NUMBER, content_padding=10)
 
-    # --- EMPRESA: CAMPOS ---
-    txt_nome_empresa = ft.TextField(label="Nome Fantasia", bgcolor="white", height=40, text_size=14)
-    txt_cnpj = ft.TextField(label="CNPJ", bgcolor="white", height=40, text_size=14)
-    txt_endereco = ft.TextField(label="Endereço", bgcolor="white", height=40, text_size=14)
-    txt_telefone = ft.TextField(label="Telefone", bgcolor="white", height=40, text_size=14)
+    # --- DADOS DA EMPRESA (COM MÁSCARAS) ---
+    txt_nome_empresa = ft.TextField(label="Nome Fantasia", bgcolor="white", height=40, content_padding=10)
     
-    img_logo_preview = ft.Image(src="", width=100, height=100, fit=ft.ImageFit.CONTAIN, visible=False)
-    img_icon_preview = ft.Image(src="", width=50, height=50, fit=ft.ImageFit.CONTAIN, visible=False)
+    txt_cnpj = ft.TextField(
+        label="CNPJ", bgcolor="white", height=40, content_padding=10,
+        input_filter=ft.InputFilter(allow=True, regex_string=r"[0-9]"),
+        max_length=18,
+        on_blur=formatar_cnpj_blur,
+        on_focus=limpar_formatacao_focus
+    )
+    
+    txt_endereco = ft.TextField(label="Endereço", bgcolor="white", height=40, content_padding=10)
+    
+    txt_telefone = ft.TextField(
+        label="Telefone", bgcolor="white", height=40, content_padding=10,
+        input_filter=ft.InputFilter(allow=True, regex_string=r"[0-9]"),
+        max_length=15,
+        on_blur=formatar_telefone_blur,
+        on_focus=limpar_formatacao_focus
+    )
+    
+    # Widgets de Imagem
+    container_logo = ft.Container(content=get_logo_widget(), alignment=ft.alignment.center)
+    container_favicon = ft.Container(content=get_favicon_widget(), alignment=ft.alignment.center)
 
-    # --- LÓGICA DE PRODUTOS ---
+    # --- FUNÇÕES ---
     def carregar_produtos():
         tabela_produtos.rows.clear()
         session = get_session()
@@ -50,10 +102,10 @@ def ViewConfiguracao(page: ft.Page):
         
         for p in prods:
             tabela_produtos.rows.append(ft.DataRow(cells=[
-                ft.DataCell(ft.Text(p.nome, size=12)),
-                ft.DataCell(ft.Text(f"{p.preco_venda:.2f}", size=12, weight="bold")),
-                ft.DataCell(ft.Text(f"{p.preco_revenda:.2f}", size=12)),
-                ft.DataCell(ft.IconButton(ft.Icons.DELETE, icon_color="red", icon_size=18, on_click=lambda e, pid=p.id: deletar_produto(pid)))
+                ft.DataCell(ft.Text(p.nome)), 
+                ft.DataCell(ft.Text(f"{p.preco_venda:.2f}")), 
+                ft.DataCell(ft.Text(f"{p.preco_revenda:.2f}")),
+                ft.DataCell(ft.IconButton(ft.Icons.DELETE, icon_color="red", on_click=lambda e, pid=p.id: deletar_produto(pid)))
             ]))
         try: tabela_produtos.update()
         except: pass
@@ -65,72 +117,46 @@ def ViewConfiguracao(page: ft.Page):
             pr = float(txt_novo_revenda.value.replace(",", ".")) if txt_novo_revenda.value else 0.0
             
             session = get_session()
-            session.add(ProdutoServico(nome=txt_novo_nome.value, preco_venda=pv, preco_revenda=pr, unidade="Un"))
+            session.add(ProdutoServico(nome=txt_novo_nome.value, preco_venda=pv, preco_revenda=pr))
             session.commit(); session.close()
             
             txt_novo_nome.value = ""; txt_novo_venda.value = ""; txt_novo_revenda.value = ""
-            txt_novo_nome.update(); txt_novo_venda.update(); txt_novo_revenda.update()
-            carregar_produtos()
-            page.snack_bar = ft.SnackBar(ft.Text("Produto Adicionado!"), bgcolor="green"); page.snack_bar.open=True; page.update()
+            page.update(); carregar_produtos()
         except: pass
 
     def deletar_produto(pid):
-        session = get_session()
-        session.query(ProdutoServico).filter_by(id=pid).delete()
-        session.commit(); session.close()
-        carregar_produtos()
-
-    # --- LÓGICA DE UPLOAD ---
-    def on_logo_picked(e: ft.FilePickerResultEvent):
-        if e.files and e.files[0].path:
-            if not os.path.exists("assets"): os.makedirs("assets")
-            destino = f"assets/logo_custom.png"
-            shutil.copy(e.files[0].path, destino)
-            caminho_logo_temp.current = destino
-            img_logo_preview.src = f"logo_custom.png?v={datetime.datetime.now().timestamp()}"
-            img_logo_preview.visible = True; img_logo_preview.update()
-
-    def on_icon_picked(e: ft.FilePickerResultEvent):
-        if e.files and e.files[0].path:
-            if not os.path.exists("assets"): os.makedirs("assets")
-            destino = f"assets/favicon_custom.png"
-            shutil.copy(e.files[0].path, destino)
-            caminho_icon_temp.current = destino
-            img_icon_preview.src = f"favicon_custom.png?v={datetime.datetime.now().timestamp()}"
-            img_icon_preview.visible = True; img_icon_preview.update()
-
-    fp_logo = ft.FilePicker(on_result=on_logo_picked)
-    fp_icon = ft.FilePicker(on_result=on_icon_picked)
-    page.overlay.extend([fp_logo, fp_icon])
+        session = get_session(); session.query(ProdutoServico).filter_by(id=pid).delete(); session.commit(); session.close(); carregar_produtos()
 
     def salvar_dados_empresa(e):
         session = get_session()
         emp = session.query(Empresa).first()
         if not emp: emp = Empresa(); session.add(emp)
         emp.nome_fantasia = txt_nome_empresa.value
-        emp.cnpj, emp.endereco, emp.telefone = txt_cnpj.value, txt_endereco.value, txt_telefone.value
-        if caminho_logo_temp.current: emp.caminho_logo = caminho_logo_temp.current
-        if caminho_icon_temp.current: emp.caminho_icon = caminho_icon_temp.current
+        # Salva apenas números no banco
+        emp.cnpj = "".join(filter(str.isdigit, txt_cnpj.value))
+        emp.endereco = txt_endereco.value
+        emp.telefone = "".join(filter(str.isdigit, txt_telefone.value))
         session.commit(); session.close()
-        page.title = f"{txt_nome_empresa.value}"
-        page.update()
+        page.title = f"{txt_nome_empresa.value}"; page.update()
         page.snack_bar = ft.SnackBar(ft.Text("Dados Salvos!"), bgcolor="green"); page.snack_bar.open=True; page.update()
 
     def carregar_dados_empresa():
-        session = get_session()
-        emp = session.query(Empresa).first()
+        session = get_session(); emp = session.query(Empresa).first(); session.close()
         if emp:
             txt_nome_empresa.value = emp.nome_fantasia
-            txt_cnpj.value = emp.cnpj
             txt_endereco.value = emp.endereco
-            txt_telefone.value = emp.telefone
-            if emp.caminho_logo:
-                img_logo_preview.src = resolver_src(emp.caminho_logo); img_logo_preview.visible = True
-            if emp.caminho_icon:
-                img_icon_preview.src = resolver_src(emp.caminho_icon); img_icon_preview.visible = True
-        session.close()
+            
+            # Carrega e formata visualmente
+            c_raw = emp.cnpj or ""
+            if len(c_raw) == 14: txt_cnpj.value = f"{c_raw[:2]}.{c_raw[2:5]}.{c_raw[5:8]}/{c_raw[8:12]}-{c_raw[12:]}"
+            else: txt_cnpj.value = c_raw
 
-    # --- BACKUP E RESTAURAÇÃO ---
+            t_raw = emp.telefone or ""
+            if len(t_raw) == 11: txt_telefone.value = f"({t_raw[:2]}) {t_raw[2:7]}-{t_raw[7:]}"
+            elif len(t_raw) == 10: txt_telefone.value = f"({t_raw[:2]}) {t_raw[2:6]}-{t_raw[6:]}"
+            else: txt_telefone.value = t_raw
+
+    # --- BACKUP E RESET ---
     def baixar_backup(e):
         nome_db = DATABASE_URL.replace("sqlite:///", "")
         if os.path.exists(nome_db):
@@ -143,16 +169,13 @@ def ViewConfiguracao(page: ft.Page):
         if e.files and e.files[0].path:
             arquivo_origem = e.files[0].path
             nome_db_destino = DATABASE_URL.replace("sqlite:///", "")
-            
-            # Força a desconexão do banco atual para permitir a substituição
             engine.dispose()
             try:
                 shutil.copy(arquivo_origem, nome_db_destino)
-                page.snack_bar = ft.SnackBar(ft.Text("Backup Restaurado! O sistema será fechado."), bgcolor="green"); page.snack_bar.open=True; page.update()
-                import time; time.sleep(2)
-                page.window_close() # Fecha a janela para reiniciar
+                page.snack_bar = ft.SnackBar(ft.Text("Backup Restaurado! Fechando sistema..."), bgcolor="green"); page.snack_bar.open=True; page.update()
+                import time; time.sleep(2); page.window_close()
             except Exception as err:
-                 page.snack_bar = ft.SnackBar(ft.Text(f"Erro ao restaurar: {err}"), bgcolor="red"); page.snack_bar.open=True; page.update()
+                 page.snack_bar = ft.SnackBar(ft.Text(f"Erro: {err}"), bgcolor="red"); page.snack_bar.open=True; page.update()
 
     fp_restore = ft.FilePicker(on_result=restaurar_backup_pick)
     page.overlay.append(fp_restore)
@@ -169,41 +192,50 @@ def ViewConfiguracao(page: ft.Page):
     
     dlg_reset = ft.AlertDialog(title=ft.Text("RESET TOTAL"), content=txt_senha_reset, actions=[ft.TextButton("Cancelar", on_click=lambda e: page.close(dlg_reset)), ft.ElevatedButton("CONFIRMAR", bgcolor="red", color="white", on_click=confirmar_reset)])
 
-    carregar_dados_empresa()
-    carregar_produtos()
+    carregar_dados_empresa(); carregar_produtos()
 
     return ft.Container(padding=20, bgcolor=ft.Colors.GREY_100, expand=True, content=ft.Column([
         ft.Text("Configurações", size=25, weight="bold", color=ft.Colors.BLUE_GREY_900),
         ft.Row([
-            # Coluna 1: Dados da Empresa
+            # Coluna 1
             ft.Container(bgcolor="white", padding=20, border_radius=10, expand=1, content=ft.Column([
-                ft.Text("Identidade Visual", weight="bold"), ft.Divider(),
+                ft.Text("Identidade & Dados", weight="bold"), ft.Divider(),
                 txt_nome_empresa, txt_cnpj, txt_endereco, txt_telefone,
-                ft.Divider(), ft.Text("Imagens"),
-                ft.Row([ft.ElevatedButton("Logo", icon=ft.Icons.UPLOAD, on_click=lambda _: fp_logo.pick_files()), img_logo_preview]),
-                ft.Row([ft.ElevatedButton("Ícone", icon=ft.Icons.IMAGE, on_click=lambda _: fp_icon.pick_files()), img_icon_preview]),
+                ft.Divider(),
+                ft.Text("Logo do Sistema", weight="bold"),
+                ft.Row([
+                    container_logo, 
+                    ft.Column([
+                        ft.Text("Para alterar a logo:", size=12, color="grey"),
+                        ft.Text("1. Salve 'logo.png' na pasta assets", size=11, italic=True),
+                        ft.Text("2. Reinicie o sistema", size=11, italic=True),
+                    ])
+                ]),
+                ft.Divider(),
+                ft.Text("Favicon (Ícone)", weight="bold"),
+                ft.Row([
+                    container_favicon, 
+                    ft.Column([
+                        ft.Text("Para alterar o ícone:", size=12, color="grey"),
+                        ft.Text("1. Salve 'favicon.png' na pasta assets", size=11, italic=True),
+                        ft.Text("2. Reinicie o sistema", size=11, italic=True),
+                    ])
+                ]),
                 ft.Container(height=10), ft.ElevatedButton("Salvar Dados", bgcolor="blue", color="white", width=float('inf'), on_click=salvar_dados_empresa)
             ])),
-            # Coluna 2: Produtos e Backup
+            # Coluna 2
             ft.Column([
-                # Card Produtos
                 ft.Container(bgcolor="white", padding=20, border_radius=10, content=ft.Column([
-                    ft.Text("Cadastro de Produtos & Preços", weight="bold", color="green"),
+                    ft.Text("Produtos", weight="bold", color="green"),
                     ft.Row([txt_novo_nome, txt_novo_venda, txt_novo_revenda, ft.IconButton(ft.Icons.ADD_CIRCLE, icon_color="green", icon_size=30, on_click=adicionar_produto)]),
                     ft.Container(content=ft.Column([tabela_produtos], scroll=ft.ScrollMode.AUTO), height=250)
                 ])),
-                # Card Backup e Reset
                 ft.Container(bgcolor="white", padding=20, border_radius=10, content=ft.Column([
-                    ft.Text("Sistema & Segurança", weight="bold"),
+                    ft.Text("Segurança", weight="bold"),
                     ft.Row([
-                        # BOTÃO BAIXAR
                         ft.ElevatedButton("Backup", icon=ft.Icons.DOWNLOAD, bgcolor="orange", color="white", on_click=baixar_backup),
-                        
-                        # BOTÃO RESTAURAR (NOVO!)
                         ft.ElevatedButton("Restaurar", icon=ft.Icons.UPLOAD_FILE, bgcolor=ft.Colors.GREY_700, color="white", on_click=lambda _: fp_restore.pick_files()),
-                        
-                        # BOTÃO RESETAR
-                        ft.ElevatedButton("Reset Total", icon=ft.Icons.DELETE_FOREVER, bgcolor="red", color="white", on_click=lambda e: page.open(dlg_reset))
+                        ft.ElevatedButton("Reset", icon=ft.Icons.DELETE_FOREVER, bgcolor="red", color="white", on_click=lambda e: page.open(dlg_reset))
                     ], alignment="spaceBetween")
                 ]))
             ], expand=1)

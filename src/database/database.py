@@ -55,6 +55,8 @@ class OrdemServico(Base):
     id = Column(Integer, primary_key=True)
     cliente_id = Column(Integer, ForeignKey('clientes.id'))
     data_criacao = Column(DateTime, default=datetime.datetime.now)
+    data_entrega = Column(String) # <--- NOVO CAMPO
+    is_urgente = Column(Boolean, default=False) # <--- NOVO CAMPO
     status = Column(String, default="Fila") 
     valor_total = Column(Float)
     valor_pago = Column(Float, default=0.0)

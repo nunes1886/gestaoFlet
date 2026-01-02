@@ -1,6 +1,6 @@
 import flet as ft
 from src.database.database import get_session, ProdutoServico, Cliente, OrdemServico, ItemOS
-from datetime import datetime
+from datetime import datetime, timedelta
 from PIL import ImageGrab 
 import os
 import time
@@ -24,51 +24,36 @@ def ViewNovaVenda(page):
             imagem = ImageGrab.grabclipboard()
             if imagem:
                 if not os.path.exists("temp_img"): os.makedirs("temp_img")
-                if isinstance(imagem, list):
-                     page.snack_bar = ft.SnackBar(ft.Text("Use PrintScreen (Win+Shift+S)!"), bgcolor=ft.Colors.ORANGE)
-                     page.snack_bar.open = True; page.update(); return
-
+                if isinstance(imagem, list): return
                 nome_arq = f"temp_img/temp_{int(time.time())}.png"
                 imagem.save(nome_arq)
                 caminho_imagem_temp = nome_arq
                 img_preview.src = os.path.abspath(nome_arq)
-                img_preview.visible = True
-                img_preview.update()
-                page.snack_bar = ft.SnackBar(ft.Text("Imagem colada!"), bgcolor=ft.Colors.GREEN); page.snack_bar.open=True; page.update()
-            else:
-                page.snack_bar = ft.SnackBar(ft.Text("Nada na área de transferência."), bgcolor=ft.Colors.RED); page.snack_bar.open=True; page.update()
-        except Exception as err:
-            print(err)
+                img_preview.visible = True; img_preview.update()
+                page.snack_bar = ft.SnackBar(ft.Text("Imagem colada!"), bgcolor="green"); page.snack_bar.open=True; page.update()
+        except: pass
 
     def limpar_imagem(e):
         nonlocal caminho_imagem_temp
         caminho_imagem_temp = None
-        img_preview.src = ""
-        img_preview.visible = False
-        img_preview.update()
+        img_preview.src = ""; img_preview.visible = False; img_preview.update()
 
-    btn_colar = ft.ElevatedButton("Colar Print (Ctrl+V)", icon=ft.Icons.PASTE, bgcolor=ft.Colors.ORANGE_600, color="white", on_click=colar_imagem_clipboard)
+    btn_colar = ft.ElevatedButton("Colar (Ctrl+V)", icon=ft.Icons.PASTE, bgcolor=ft.Colors.ORANGE_600, color="white", on_click=colar_imagem_clipboard)
     btn_limpar_img = ft.IconButton(icon=ft.Icons.DELETE, icon_color="red", tooltip="Remover imagem", on_click=limpar_imagem)
     img_preview = ft.Image(src="", width=200, height=200, fit=ft.ImageFit.CONTAIN, visible=False, border_radius=10)
 
     # --- CLIENTE ---
     def buscar_cliente(e):
         digitado = e.control.value.lower()
-        if not digitado:
-            lista_sugestoes.visible = False; page.update(); return
+        if not digitado: lista_sugestoes.visible = False; page.update(); return
         matches = [c for c in todos_clientes if digitado in c.nome_empresa.lower()]
         if matches:
             lista_sugestoes.controls.clear()
             for c in matches:
-                # Mostra se é revenda na busca também
                 sufixo = " (Revenda)" if c.is_revenda else ""
-                lista_sugestoes.controls.append(
-                    ft.ListTile(title=ft.Text(f"{c.nome_empresa}{sufixo}"), on_click=lambda e, cli=c: selecionar_cliente_lista(e, cli), bgcolor="white")
-                )
-            lista_sugestoes.visible = True
-            lista_sugestoes.height = min(len(matches) * 60, 200) 
-        else:
-            lista_sugestoes.visible = False
+                lista_sugestoes.controls.append(ft.ListTile(title=ft.Text(f"{c.nome_empresa}{sufixo}"), on_click=lambda e, cli=c: selecionar_cliente_lista(e, cli), bgcolor="white"))
+            lista_sugestoes.visible = True; lista_sugestoes.height = min(len(matches) * 60, 200) 
+        else: lista_sugestoes.visible = False
         page.update()
 
     def selecionar_cliente_lista(e, cli):
@@ -77,43 +62,37 @@ def ViewNovaVenda(page):
         txt_whatsapp.value = cli.telefone or ""
         cliente_selecionado_id = cli.id
         lista_sugestoes.visible = False
-        
-        # Feedback visual se é revenda
         if cli.is_revenda:
-            page.snack_bar = ft.SnackBar(ft.Text("Cliente Revenda selecionado! Preços especiais aplicados."), bgcolor="blue")
-            page.snack_bar.open = True
-            
+            page.snack_bar = ft.SnackBar(ft.Text("Cliente Revenda!"), bgcolor="blue"); page.snack_bar.open = True
         page.update()
 
     txt_cliente = ft.TextField(label="Cliente", expand=True, prefix_icon=ft.Icons.SEARCH, on_change=buscar_cliente, height=50, bgcolor="white", content_padding=10)
     lista_sugestoes = ft.ListView(visible=False, spacing=0, padding=0)
     container_sugestoes = ft.Container(content=lista_sugestoes, bgcolor="white", border=ft.border.all(1, ft.Colors.GREY_300), width=400)
     txt_whatsapp = ft.TextField(label="WhatsApp", expand=True, prefix_icon=ft.Icons.PHONE, height=50, bgcolor="white", content_padding=10)
-    dt_entrega = ft.TextField(label="Entrega", width=150, value=datetime.now().strftime("%d/%m/%Y"), prefix_icon=ft.Icons.CALENDAR_MONTH, height=50, bgcolor="white", content_padding=10)
-
-    # PRODUTOS
-    # Mostra os dois preços no dropdown para referência
-    opcoes_produtos = [ft.dropdown.Option(key=str(p.id), text=f"{p.nome} (V: {p.preco_venda:.2f} | R: {p.preco_revenda:.2f})") for p in lista_produtos]
     
+    # DATA DE ENTREGA
+    data_padrao = (datetime.now() + timedelta(days=2)).strftime("%d/%m/%Y")
+    dt_entrega = ft.TextField(label="Data Entrega", width=150, value=data_padrao, prefix_icon=ft.Icons.CALENDAR_MONTH, height=50, bgcolor="white", content_padding=10)
+    
+    # CHECKBOX URGÊNCIA
+    chk_urgente = ft.Checkbox(label="URGENTE", value=False, label_style=ft.TextStyle(color="red", weight="bold"))
+
+    # --- PRODUTOS ---
+    opcoes_produtos = [ft.dropdown.Option(key=str(p.id), text=f"{p.nome} (V: {p.preco_venda:.2f} | R: {p.preco_revenda:.2f})") for p in lista_produtos]
     dd_produtos = ft.Dropdown(label="Selecione o Produto", options=opcoes_produtos, expand=True, height=50, bgcolor="white", content_padding=10)
     txt_largura = ft.TextField(label="Larg (m)", expand=True, value="1", height=50, bgcolor="white", content_padding=10)
     txt_altura = ft.TextField(label="Alt (m)", expand=True, value="1", height=50, bgcolor="white", content_padding=10)
     txt_qtd = ft.TextField(label="Qtd", width=80, value="1", height=50, bgcolor="white", content_padding=10)
     
-    txt_motivo = ft.TextField(label="Motivo / Nome do Arquivo / Evento", hint_text="Ex: Fachada Loja Centro", bgcolor="white")
-
+    txt_motivo = ft.TextField(label="Motivo / Nome do Arquivo", hint_text="Ex: Fachada Loja", bgcolor="white")
     txt_obs = ft.TextField(label="Obs Produção", multiline=True, min_lines=3, bgcolor="white")
     txt_sinal = ft.TextField(label="Sinal (R$)", value="0.00", width=150, text_align="right", bgcolor="white", on_change=lambda e: atualizar_financeiro(), content_padding=10)
     txt_falta_pagar = ft.Text("Falta: R$ 0.00", size=18, weight="bold", color=ft.Colors.RED_600)
     
     tabela_itens = ft.DataTable(
         width=float('inf'), heading_row_height=40, column_spacing=10,
-        columns=[
-            ft.DataColumn(ft.Text("Prod")),
-            ft.DataColumn(ft.Text("Medidas"), numeric=True),
-            ft.DataColumn(ft.Text("Total"), numeric=True),
-            ft.DataColumn(ft.Text("Del"), numeric=True),
-        ], rows=[]
+        columns=[ft.DataColumn(ft.Text("Prod")), ft.DataColumn(ft.Text("Medidas")), ft.DataColumn(ft.Text("Total")), ft.DataColumn(ft.Text("Del"))], rows=[]
     )
     txt_total_final = ft.Text("R$ 0.00", size=28, weight="bold", color=ft.Colors.GREEN_700)
 
@@ -130,20 +109,14 @@ def ViewNovaVenda(page):
 
     def adicionar_item(e):
         if not dd_produtos.value: return
-        
-        # VERIFICAÇÃO DE SEGURANÇA: Cliente deve ser selecionado para definir preço
         if not cliente_selecionado_id:
-             page.snack_bar = ft.SnackBar(ft.Text("Selecione um Cliente PRIMEIRO para calcular o preço (Revenda ou Final)."), bgcolor=ft.Colors.RED)
-             page.snack_bar.open = True; page.update(); return
+             page.snack_bar = ft.SnackBar(ft.Text("Selecione um Cliente PRIMEIRO!"), bgcolor="red"); page.snack_bar.open = True; page.update(); return
 
         session = get_session()
         prod = session.query(ProdutoServico).get(int(dd_produtos.value))
         cliente = session.query(Cliente).get(cliente_selecionado_id)
-        
-        # --- LÓGICA DE PREÇIFICAÇÃO ---
         preco_usado = prod.preco_revenda if cliente.is_revenda else prod.preco_venda
         tag_preco = " (Revenda)" if cliente.is_revenda else ""
-        
         session.close()
 
         try:
@@ -153,51 +126,32 @@ def ViewNovaVenda(page):
         except: return 
         
         total_item = larg * alt * qtd * preco_usado
-        
-        carrinho_itens.append({
-            "id": prod.id, 
-            "nome": f"{prod.nome}{tag_preco}", 
-            "l": larg, "a": alt, "q": qtd, 
-            "p": preco_usado, 
-            "total": total_item
-        })
+        carrinho_itens.append({"id": prod.id, "nome": f"{prod.nome}{tag_preco}", "l": larg, "a": alt, "q": qtd, "p": preco_usado, "total": total_item})
         reconstruir_tabela()
 
     def remover_item(e, idx):
-        carrinho_itens.pop(idx)
-        reconstruir_tabela()
+        carrinho_itens.pop(idx); reconstruir_tabela()
 
     def reconstruir_tabela():
         tabela_itens.rows.clear()
         for i, item in enumerate(carrinho_itens):
             tabela_itens.rows.append(ft.DataRow(cells=[
-                ft.DataCell(ft.Text(item["nome"][:20], size=12)), 
+                ft.DataCell(ft.Text(item["nome"][:15], size=12)), 
                 ft.DataCell(ft.Text(f"{item['l']}x{item['a']} ({item['q']})", size=12)), 
                 ft.DataCell(ft.Text(f"{item['total']:.2f}", size=12)),
                 ft.DataCell(ft.IconButton(ft.Icons.DELETE, icon_color="red", icon_size=20, on_click=lambda e, idx=i: remover_item(e, idx)))
             ]))
-        page.update()
-        atualizar_financeiro()
+        page.update(); atualizar_financeiro()
 
     def resetar_tela():
         nonlocal cliente_selecionado_id
-        carrinho_itens.clear()
-        cliente_selecionado_id = None
-        txt_cliente.value = ""
-        txt_whatsapp.value = ""
-        txt_motivo.value = ""
-        txt_obs.value = ""
-        txt_sinal.value = "0.00"
-        dd_produtos.value = None
-        txt_largura.value = "1"
-        txt_altura.value = "1"
-        txt_qtd.value = "1"
-        txt_total_final.value = "R$ 0.00"
-        txt_falta_pagar.value = "Falta: R$ 0.00"
-        txt_falta_pagar.color = ft.Colors.RED_600
-        tabela_itens.rows.clear()
-        limpar_imagem(None)
-        dt_entrega.value = datetime.now().strftime("%d/%m/%Y")
+        carrinho_itens.clear(); cliente_selecionado_id = None
+        txt_cliente.value = ""; txt_whatsapp.value = ""; txt_motivo.value = ""; txt_obs.value = ""; txt_sinal.value = "0.00"
+        dd_produtos.value = None; txt_largura.value = "1"; txt_altura.value = "1"; txt_qtd.value = "1"
+        txt_total_final.value = "R$ 0.00"; txt_falta_pagar.value = "Falta: R$ 0.00"
+        tabela_itens.rows.clear(); limpar_imagem(None)
+        dt_entrega.value = (datetime.now() + timedelta(days=2)).strftime("%d/%m/%Y")
+        chk_urgente.value = False
         page.update()
 
     def concluir_venda(e):
@@ -207,8 +161,6 @@ def ViewNovaVenda(page):
 
         session = get_session()
         cli_id = cliente_selecionado_id
-        
-        # Se cliente não existia (digitado manualmente), cria como Normal (não revenda)
         if not cli_id:
             existente = session.query(Cliente).filter_by(nome_empresa=txt_cliente.value).first()
             if existente: cli_id = existente.id
@@ -227,47 +179,47 @@ def ViewNovaVenda(page):
             caminho_final = nome_final
         
         nova_os = OrdemServico(
-            cliente_id=cli_id, 
-            status="Fila", 
-            valor_total=total, 
-            valor_pago=sinal, 
-            motivo=txt_motivo.value, 
-            observacoes=txt_obs.value, 
-            imagem_os=caminho_final, 
-            data_criacao=datetime.now()
+            cliente_id=cli_id, status="Fila", valor_total=total, valor_pago=sinal, 
+            motivo=txt_motivo.value, observacoes=txt_obs.value, imagem_os=caminho_final, 
+            data_criacao=datetime.now(),
+            data_entrega=dt_entrega.value,
+            is_urgente=chk_urgente.value
         )
         session.add(nova_os); session.flush()
-        
         for item in carrinho_itens:
             session.add(ItemOS(os_id=nova_os.id, produto_id=item["id"], descricao_item=item["nome"], largura=item["l"], altura=item["a"], quantidade=item["q"], preco_unitario=item["p"], total_item=item["total"]))
         
-        session.commit()
-        session.refresh(nova_os)
-        
+        session.commit(); session.refresh(nova_os)
         try:
             gerar_pdf_venda(nova_os)
             mensagem = f"Venda #{nova_os.id} Salva! PDF Gerado."
             cor_msg = ft.Colors.GREEN
         except Exception as err:
-            mensagem = f"Erro no PDF: {err}"
-            cor_msg = ft.Colors.ORANGE
+            mensagem = f"Erro no PDF: {err}"; cor_msg = ft.Colors.ORANGE
 
         session.close() 
-        if caminho_imagem_temp and os.path.exists(caminho_imagem_temp):
+        if caminho_imagem_temp: 
             try: os.remove(caminho_imagem_temp)
             except: pass
         resetar_tela()
         page.snack_bar = ft.SnackBar(ft.Text(mensagem), bgcolor=cor_msg); page.snack_bar.open=True; page.update()
 
+    # --- BARRA DE AÇÕES (ADD ITEM + PRINT) ---
+    btn_add_item = ft.ElevatedButton("Adicionar Item", icon=ft.Icons.ADD_SHOPPING_CART, on_click=adicionar_item, bgcolor="blue", color="white")
+    barra_acoes = ft.Container(bgcolor=ft.Colors.BLUE_GREY_50, padding=10, border_radius=8, content=ft.Row([btn_add_item, btn_colar, btn_limpar_img], alignment=ft.MainAxisAlignment.CENTER, spacing=20))
+
+    # --- COLUNA ESQUERDA AJUSTADA ---
     coluna_esquerda = ft.Column([
         ft.Text("Dados do Cliente", weight="bold"), txt_cliente, container_sugestoes, ft.Row([txt_whatsapp, dt_entrega]), 
         ft.Divider(), 
-        ft.Text("Produtos", weight="bold"), dd_produtos, ft.Row([txt_largura, txt_altura, txt_qtd]), ft.ElevatedButton("Add Item", on_click=adicionar_item, bgcolor="blue", color="white"), 
+        ft.Text("Produtos", weight="bold"), dd_produtos, ft.Row([txt_largura, txt_altura, txt_qtd]), 
         ft.Divider(), 
         ft.Text("Detalhes & Arte", weight="bold"), 
-        txt_motivo,
+        ft.Row([txt_motivo, chk_urgente]), 
         txt_obs,
-        ft.Row([btn_colar, btn_limpar_img]), 
+        # AGORA A BARRA DE AÇÕES ESTÁ AQUI
+        ft.Container(height=10),
+        barra_acoes, 
         img_preview 
     ], scroll=ft.ScrollMode.AUTO)
     
