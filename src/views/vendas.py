@@ -5,9 +5,10 @@ from PIL import ImageGrab
 import os
 import time
 import shutil
-from src.utils.gerar_pdf import gerar_pdf_venda
+from src.utils.gerar_pdf import gerar_pdf_venda 
 
 def ViewNovaVenda(page):
+    # --- VARIÁVEIS DE ESTADO ---
     carrinho_itens = []
     cliente_selecionado_id = None 
     caminho_imagem_temp = None 
@@ -17,6 +18,37 @@ def ViewNovaVenda(page):
     todos_clientes = session.query(Cliente).all() 
     session.close()
 
+    # --- ESTILOS VISUAIS ---
+    COR_PRIMARIA = ft.colors.BLUE_800
+    COR_SECUNDARIA = ft.colors.BLUE_600
+    COR_FUNDO = ft.colors.GREY_100
+
+    def criar_titulo_secao(texto, icone):
+        return ft.Row([
+            ft.Icon(icone, color=COR_PRIMARIA),
+            ft.Text(texto, weight="bold", size=16, color=ft.colors.BLUE_GREY_800)
+        ], alignment="start")
+
+    # --- LÓGICA DE MÁSCARA (WHATSAPP) ---
+    def formatar_telefone(e):
+        valor = e.control.value
+        # Remove tudo que não é dígito
+        apenas_numeros = "".join(filter(str.isdigit, valor))
+        
+        # Limita a 11 dígitos (DDD + 9 + 8 números)
+        apenas_numeros = apenas_numeros[:11]
+        
+        novo_valor = ""
+        if len(apenas_numeros) > 0:
+            novo_valor += f"({apenas_numeros[:2]}"
+        if len(apenas_numeros) > 2:
+            novo_valor += f") {apenas_numeros[2:7]}"
+        if len(apenas_numeros) > 7:
+            novo_valor += f"-{apenas_numeros[7:]}"
+            
+        e.control.value = novo_valor
+        e.control.update()
+
     # --- LÓGICA DE IMAGEM ---
     def colar_imagem_clipboard(e):
         nonlocal caminho_imagem_temp
@@ -24,86 +56,140 @@ def ViewNovaVenda(page):
             imagem = ImageGrab.grabclipboard()
             if imagem:
                 if not os.path.exists("temp_img"): os.makedirs("temp_img")
-                if isinstance(imagem, list): return
+                if isinstance(imagem, list): return # Proteção contra arquivos múltiplos
                 nome_arq = f"temp_img/temp_{int(time.time())}.png"
                 imagem.save(nome_arq)
                 caminho_imagem_temp = nome_arq
+                
                 img_preview.src = os.path.abspath(nome_arq)
-                img_preview.visible = True; img_preview.update()
-                page.snack_bar = ft.SnackBar(ft.Text("Imagem colada!"), bgcolor="green"); page.snack_bar.open=True; page.update()
+                img_preview.visible = True
+                texto_img_placeholder.visible = False
+                container_img.border = ft.border.all(2, ft.colors.GREEN_400)
+                page.update()
+                
+                page.snack_bar = ft.SnackBar(ft.Text("Imagem anexada com sucesso!"), bgcolor="green"); page.snack_bar.open=True; page.update()
         except: pass
 
     def limpar_imagem(e):
         nonlocal caminho_imagem_temp
         caminho_imagem_temp = None
-        img_preview.src = ""; img_preview.visible = False; img_preview.update()
+        img_preview.src = ""
+        img_preview.visible = False
+        texto_img_placeholder.visible = True
+        container_img.border = ft.border.all(1, ft.colors.GREY_300)
+        page.update()
 
-    btn_colar = ft.ElevatedButton("Colar (Ctrl+V)", icon=ft.Icons.PASTE, bgcolor=ft.Colors.ORANGE_600, color="white", on_click=colar_imagem_clipboard)
+    # Componentes de Imagem
+    img_preview = ft.Image(src="", width=150, height=150, fit=ft.ImageFit.CONTAIN, visible=False, border_radius=8)
+    texto_img_placeholder = ft.Column([
+        ft.Icon(ft.Icons.IMAGE_SEARCH, size=40, color=ft.colors.GREY_400),
+        ft.Text("Cole sua arte aqui\n(Ctrl+V)", text_align="center", color=ft.colors.GREY_500, size=12)
+    ], alignment="center", horizontal_alignment="center")
+    
+    container_img = ft.Container(
+        content=ft.Stack([texto_img_placeholder, img_preview], alignment=ft.alignment.center),
+        width=160, height=160,
+        border=ft.border.all(1, ft.colors.GREY_300),
+        border_radius=10,
+        bgcolor=ft.colors.GREY_50,
+        alignment=ft.alignment.center,
+        on_click=colar_imagem_clipboard, # Clicar também cola
+        tooltip="Clique para colar ou use Ctrl+V"
+    )
+    
     btn_limpar_img = ft.IconButton(icon=ft.Icons.DELETE, icon_color="red", tooltip="Remover imagem", on_click=limpar_imagem)
-    img_preview = ft.Image(src="", width=200, height=200, fit=ft.ImageFit.CONTAIN, visible=False, border_radius=10)
 
     # --- CLIENTE ---
     def buscar_cliente(e):
         digitado = e.control.value.lower()
         if not digitado: lista_sugestoes.visible = False; page.update(); return
         matches = [c for c in todos_clientes if digitado in c.nome_empresa.lower()]
+        
+        lista_sugestoes.controls.clear()
         if matches:
-            lista_sugestoes.controls.clear()
             for c in matches:
                 sufixo = " (Revenda)" if c.is_revenda else ""
-                lista_sugestoes.controls.append(ft.ListTile(title=ft.Text(f"{c.nome_empresa}{sufixo}"), on_click=lambda e, cli=c: selecionar_cliente_lista(e, cli), bgcolor="white"))
-            lista_sugestoes.visible = True; lista_sugestoes.height = min(len(matches) * 60, 200) 
-        else: lista_sugestoes.visible = False
+                lista_sugestoes.controls.append(
+                    ft.ListTile(
+                        leading=ft.Icon(ft.Icons.PERSON, color=COR_SECUNDARIA),
+                        title=ft.Text(f"{c.nome_empresa}{sufixo}", weight="bold"),
+                        subtitle=ft.Text(c.telefone or "Sem telefone"),
+                        on_click=lambda e, cli=c: selecionar_cliente_lista(e, cli),
+                        bgcolor=ft.colors.WHITE,
+                    )
+                )
+            lista_sugestoes.visible = True
+            lista_sugestoes.height = min(len(matches) * 70, 250) 
+        else:
+            lista_sugestoes.visible = False
         page.update()
 
     def selecionar_cliente_lista(e, cli):
         nonlocal cliente_selecionado_id
         txt_cliente.value = cli.nome_empresa
         txt_whatsapp.value = cli.telefone or ""
+        
+        # --- CORREÇÃO DO ERRO ---
+        # Aplica formatação visual se já tiver numero
+        if txt_whatsapp.value:
+            # Passamos o próprio controle txt_whatsapp dentro do evento simulado
+            class MockEvent: 
+                control = txt_whatsapp
+            
+            formatar_telefone(MockEvent())
+        # ------------------------
+            
         cliente_selecionado_id = cli.id
         lista_sugestoes.visible = False
         if cli.is_revenda:
-            page.snack_bar = ft.SnackBar(ft.Text("Cliente Revenda!"), bgcolor="blue"); page.snack_bar.open = True
+            page.snack_bar = ft.SnackBar(ft.Text("Cliente Revenda selecionado! Preços ajustados."), bgcolor="blue"); page.snack_bar.open = True
         page.update()
 
-    txt_cliente = ft.TextField(label="Cliente", expand=True, prefix_icon=ft.Icons.SEARCH, on_change=buscar_cliente, height=50, bgcolor="white", content_padding=10)
+    txt_cliente = ft.TextField(label="Buscar Cliente", text_size=14, expand=True, prefix_icon=ft.Icons.SEARCH, on_change=buscar_cliente, height=45, bgcolor="white", border_radius=8)
     lista_sugestoes = ft.ListView(visible=False, spacing=0, padding=0)
-    container_sugestoes = ft.Container(content=lista_sugestoes, bgcolor="white", border=ft.border.all(1, ft.Colors.GREY_300), width=400)
-    txt_whatsapp = ft.TextField(label="WhatsApp", expand=True, prefix_icon=ft.Icons.PHONE, height=50, bgcolor="white", content_padding=10)
+    container_sugestoes = ft.Container(content=lista_sugestoes, bgcolor="white", border=ft.border.all(1, ft.colors.GREY_200), border_radius=8, shadow=ft.BoxShadow(blur_radius=10, color=ft.colors.BLACK12))
+    
+    # Campo Whatsapp com formatação
+    txt_whatsapp = ft.TextField(label="WhatsApp", expand=True, prefix_icon=ft.Icons.PHONE, height=45, text_size=14, bgcolor="white", border_radius=8, on_change=formatar_telefone, max_length=15)
     
     # DATA DE ENTREGA
     data_padrao = (datetime.now() + timedelta(days=2)).strftime("%d/%m/%Y")
-    dt_entrega = ft.TextField(label="Data Entrega", width=150, value=data_padrao, prefix_icon=ft.Icons.CALENDAR_MONTH, height=50, bgcolor="white", content_padding=10)
+    dt_entrega = ft.TextField(label="Entrega", width=140, value=data_padrao, prefix_icon=ft.Icons.CALENDAR_MONTH, height=45, text_size=14, bgcolor="white", border_radius=8)
     
     # CHECKBOX URGÊNCIA
     chk_urgente = ft.Checkbox(label="URGENTE", value=False, label_style=ft.TextStyle(color="red", weight="bold"))
 
     # --- PRODUTOS ---
     opcoes_produtos = [ft.dropdown.Option(key=str(p.id), text=f"{p.nome} (V: {p.preco_venda:.2f} | R: {p.preco_revenda:.2f})") for p in lista_produtos]
-    dd_produtos = ft.Dropdown(label="Selecione o Produto", options=opcoes_produtos, expand=True, height=50, bgcolor="white", content_padding=10)
-    txt_largura = ft.TextField(label="Larg (m)", expand=True, value="1", height=50, bgcolor="white", content_padding=10)
-    txt_altura = ft.TextField(label="Alt (m)", expand=True, value="1", height=50, bgcolor="white", content_padding=10)
-    txt_qtd = ft.TextField(label="Qtd", width=80, value="1", height=50, bgcolor="white", content_padding=10)
+    dd_produtos = ft.Dropdown(label="Selecione o Produto", options=opcoes_produtos, expand=True, height=45, text_size=14, bgcolor="white", border_radius=8)
     
-    txt_motivo = ft.TextField(label="Motivo / Nome do Arquivo", hint_text="Ex: Fachada Loja", bgcolor="white")
-    txt_obs = ft.TextField(label="Obs Produção", multiline=True, min_lines=3, bgcolor="white")
-    txt_sinal = ft.TextField(label="Sinal (R$)", value="0.00", width=150, text_align="right", bgcolor="white", on_change=lambda e: atualizar_financeiro(), content_padding=10)
-    txt_falta_pagar = ft.Text("Falta: R$ 0.00", size=18, weight="bold", color=ft.Colors.RED_600)
+    txt_largura = ft.TextField(label="Larg (m)", expand=True, value="1", height=45, bgcolor="white", border_radius=8, text_align="center")
+    txt_altura = ft.TextField(label="Alt (m)", expand=True, value="1", height=45, bgcolor="white", border_radius=8, text_align="center")
+    txt_qtd = ft.TextField(label="Qtd", width=80, value="1", height=45, bgcolor="white", border_radius=8, text_align="center")
+    
+    txt_motivo = ft.TextField(label="Nome do Arquivo / Motivo", hint_text="Ex: Banner Promoção", bgcolor="white", border_radius=8, prefix_icon=ft.Icons.DESCRIPTION, height=45)
+    txt_obs = ft.TextField(label="Observações de Produção", multiline=True, min_lines=3, bgcolor="white", border_radius=8, text_size=13)
+    
+    txt_sinal = ft.TextField(label="Sinal (R$)", value="0.00", width=150, text_align="right", bgcolor="white", border_radius=8, on_change=lambda e: atualizar_financeiro(), text_style=ft.TextStyle(weight="bold", color=ft.colors.BLUE_900))
+    txt_falta_pagar = ft.Text("Falta: R$ 0.00", size=16, weight="bold", color=ft.colors.RED_600)
     
     tabela_itens = ft.DataTable(
         width=float('inf'), heading_row_height=40, column_spacing=10,
+        heading_row_color=ft.colors.BLUE_50,
         columns=[ft.DataColumn(ft.Text("Prod")), ft.DataColumn(ft.Text("Medidas")), ft.DataColumn(ft.Text("Total")), ft.DataColumn(ft.Text("Del"))], rows=[]
     )
-    txt_total_final = ft.Text("R$ 0.00", size=28, weight="bold", color=ft.Colors.GREEN_700)
+    txt_total_final = ft.Text("R$ 0.00", size=30, weight="bold", color=ft.colors.GREEN_700)
 
+    # --- FUNÇÕES LÓGICAS ---
     def atualizar_financeiro():
         try:
             total = sum(item["total"] for item in carrinho_itens)
-            sinal = float(txt_sinal.value.replace(",", ".")) if txt_sinal.value else 0.0
+            sinal_str = txt_sinal.value.replace("R$", "").strip()
+            sinal = float(sinal_str.replace(",", ".")) if sinal_str else 0.0
             falta = total - sinal
             txt_total_final.value = f"R$ {total:.2f}"
             txt_falta_pagar.value = f"Falta: R$ {falta:.2f}"
-            txt_falta_pagar.color = ft.Colors.GREEN_600 if falta <= 0.01 else ft.Colors.RED_600
+            txt_falta_pagar.color = ft.colors.GREEN_600 if falta <= 0.01 else ft.colors.RED_600
             page.update()
         except: pass
 
@@ -116,7 +202,7 @@ def ViewNovaVenda(page):
         prod = session.query(ProdutoServico).get(int(dd_produtos.value))
         cliente = session.query(Cliente).get(cliente_selecionado_id)
         preco_usado = prod.preco_revenda if cliente.is_revenda else prod.preco_venda
-        tag_preco = " (Revenda)" if cliente.is_revenda else ""
+        tag_preco = " (Rev)" if cliente.is_revenda else ""
         session.close()
 
         try:
@@ -138,7 +224,7 @@ def ViewNovaVenda(page):
             tabela_itens.rows.append(ft.DataRow(cells=[
                 ft.DataCell(ft.Text(item["nome"][:15], size=12)), 
                 ft.DataCell(ft.Text(f"{item['l']}x{item['a']} ({item['q']})", size=12)), 
-                ft.DataCell(ft.Text(f"{item['total']:.2f}", size=12)),
+                ft.DataCell(ft.Text(f"{item['total']:.2f}", size=12, weight="bold")),
                 ft.DataCell(ft.IconButton(ft.Icons.DELETE, icon_color="red", icon_size=20, on_click=lambda e, idx=i: remover_item(e, idx)))
             ]))
         page.update(); atualizar_financeiro()
@@ -157,18 +243,20 @@ def ViewNovaVenda(page):
     def concluir_venda(e):
         nonlocal cliente_selecionado_id, caminho_imagem_temp
         if not txt_cliente.value or not carrinho_itens:
-            page.snack_bar = ft.SnackBar(ft.Text("Preencha dados!"), bgcolor="red"); page.snack_bar.open=True; page.update(); return
+            page.snack_bar = ft.SnackBar(ft.Text("Preencha cliente e adicione produtos!"), bgcolor="red"); page.snack_bar.open=True; page.update(); return
 
         session = get_session()
         cli_id = cliente_selecionado_id
-        if not cli_id:
+        if not cli_id: # Cria cliente novo se não selecionou da lista
             existente = session.query(Cliente).filter_by(nome_empresa=txt_cliente.value).first()
             if existente: cli_id = existente.id
             else:
-                novo = Cliente(nome_empresa=txt_cliente.value, telefone="".join(filter(str.isdigit, txt_whatsapp.value)), is_revenda=False)
+                tel_limpo = "".join(filter(str.isdigit, txt_whatsapp.value))
+                novo = Cliente(nome_empresa=txt_cliente.value, telefone=tel_limpo, is_revenda=False)
                 session.add(novo); session.flush(); cli_id = novo.id
         
-        sinal = float(txt_sinal.value.replace(",", ".")) if txt_sinal.value else 0.0
+        sinal_str = txt_sinal.value.replace("R$", "").strip()
+        sinal = float(sinal_str.replace(",", ".")) if sinal_str else 0.0
         total = sum(i["total"] for i in carrinho_itens)
         
         caminho_final = None
@@ -192,10 +280,10 @@ def ViewNovaVenda(page):
         session.commit(); session.refresh(nova_os)
         try:
             gerar_pdf_venda(nova_os)
-            mensagem = f"Venda #{nova_os.id} Salva! PDF Gerado."
-            cor_msg = ft.Colors.GREEN
+            mensagem = f"Venda #{nova_os.id} realizada! PDF Gerado."
+            cor_msg = ft.colors.GREEN
         except Exception as err:
-            mensagem = f"Erro no PDF: {err}"; cor_msg = ft.Colors.ORANGE
+            mensagem = f"Venda salva, mas erro no PDF: {err}"; cor_msg = ft.colors.ORANGE
 
         session.close() 
         if caminho_imagem_temp: 
@@ -204,32 +292,104 @@ def ViewNovaVenda(page):
         resetar_tela()
         page.snack_bar = ft.SnackBar(ft.Text(mensagem), bgcolor=cor_msg); page.snack_bar.open=True; page.update()
 
-    # --- BARRA DE AÇÕES (ADD ITEM + PRINT) ---
-    btn_add_item = ft.ElevatedButton("Adicionar Item", icon=ft.Icons.ADD_SHOPPING_CART, on_click=adicionar_item, bgcolor="blue", color="white")
-    barra_acoes = ft.Container(bgcolor=ft.Colors.BLUE_GREY_50, padding=10, border_radius=8, content=ft.Row([btn_add_item, btn_colar, btn_limpar_img], alignment=ft.MainAxisAlignment.CENTER, spacing=20))
-
-    # --- COLUNA ESQUERDA AJUSTADA ---
-    coluna_esquerda = ft.Column([
-        ft.Text("Dados do Cliente", weight="bold"), txt_cliente, container_sugestoes, ft.Row([txt_whatsapp, dt_entrega]), 
-        ft.Divider(), 
-        ft.Text("Produtos", weight="bold"), dd_produtos, ft.Row([txt_largura, txt_altura, txt_qtd]), 
-        ft.Divider(), 
-        ft.Text("Detalhes & Arte", weight="bold"), 
-        ft.Row([txt_motivo, chk_urgente]), 
-        txt_obs,
-        # AGORA A BARRA DE AÇÕES ESTÁ AQUI
-        ft.Container(height=10),
-        barra_acoes, 
-        img_preview 
-    ], scroll=ft.ScrollMode.AUTO)
+    # --- MONTAGEM DOS CARDS (GRID LAYOUT) ---
     
-    coluna_direita = ft.Column([
-        ft.Text("Resumo", weight="bold", size=18), 
-        ft.Container(content=ft.Column([tabela_itens], scroll=ft.ScrollMode.AUTO), height=250, border=ft.border.all(1, "grey")), 
-        ft.Divider(), 
-        ft.Row([ft.Text("Total:"), txt_total_final], alignment="spaceBetween"), 
-        ft.Row([txt_sinal, txt_falta_pagar], alignment="spaceBetween"), 
-        ft.ElevatedButton("CONCLUIR VENDA", on_click=concluir_venda, height=50, bgcolor="green", color="white", expand=True, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=5)))
-    ])
+    # 1. CARD CLIENTE
+    card_cliente = ft.Container(
+        padding=15, bgcolor="white", border_radius=12, shadow=ft.BoxShadow(blur_radius=10, color=ft.colors.BLACK12),
+        content=ft.Column([
+            criar_titulo_secao("Dados do Cliente", ft.Icons.PERSON),
+            ft.Divider(color="transparent", height=5),
+            txt_cliente,
+            # Container de sugestões flutuante (gambiarra visual)
+            ft.Column([container_sugestoes], spacing=0),
+            ft.Row([txt_whatsapp, dt_entrega]),
+        ])
+    )
 
-    return ft.Container(padding=20, bgcolor=ft.Colors.GREY_100, expand=True, content=ft.Row([ft.Container(coluna_esquerda, expand=3, bgcolor="white", padding=20, border_radius=10), ft.VerticalDivider(width=20, color="transparent"), ft.Container(coluna_direita, expand=2, bgcolor="white", padding=20, border_radius=10)], vertical_alignment="start"))
+    # 2. CARD PRODUTO
+    card_produto = ft.Container(
+        padding=15, bgcolor="white", border_radius=12, shadow=ft.BoxShadow(blur_radius=10, color=ft.colors.BLACK12),
+        content=ft.Column([
+            criar_titulo_secao("Adicionar Produtos", ft.Icons.SHOPPING_BAG),
+            ft.Divider(color="transparent", height=5),
+            dd_produtos,
+            ft.Row([txt_largura, txt_altura, txt_qtd]),
+            ft.ElevatedButton("ADICIONAR ITEM", icon=ft.Icons.ADD, width=float('inf'), style=ft.ButtonStyle(bgcolor=COR_SECUNDARIA, color="white", shape=ft.RoundedRectangleBorder(radius=8)), on_click=adicionar_item)
+        ])
+    )
+
+    # 3. CARD DETALHES (IMAGEM + OBS)
+    card_detalhes = ft.Container(
+        padding=15, bgcolor="white", border_radius=12, shadow=ft.BoxShadow(blur_radius=10, color=ft.colors.BLACK12),
+        content=ft.Column([
+            criar_titulo_secao("Detalhes & Arte", ft.Icons.IMAGE),
+            ft.Divider(color="transparent", height=5),
+            ft.Row([
+                container_img, # Área da imagem
+                ft.Column([
+                    txt_motivo,
+                    txt_obs,
+                    ft.Row([chk_urgente, btn_limpar_img], alignment="spaceBetween")
+                ], expand=True)
+            ], alignment="start", vertical_alignment="start")
+        ])
+    )
+
+    # 4. COLUNA DA DIREITA (RESUMO + PAGAMENTO)
+    coluna_direita = ft.Container(
+        padding=20, bgcolor="white", border_radius=12, shadow=ft.BoxShadow(blur_radius=15, color=ft.colors.BLACK12),
+        expand=True,
+        content=ft.Column([
+            ft.Row([ft.Icon(ft.Icons.RECEIPT_LONG, color=COR_PRIMARIA), ft.Text("Resumo do Pedido", size=20, weight="bold", color=ft.colors.BLUE_GREY_900)]),
+            ft.Divider(),
+            ft.Container(
+                content=ft.Column([tabela_itens], scroll=ft.ScrollMode.AUTO),
+                height=300, 
+                border=ft.border.all(1, ft.colors.GREY_100), border_radius=8, bgcolor=ft.colors.GREY_50
+            ),
+            ft.Divider(),
+            ft.Row([ft.Text("TOTAL:", weight="bold", size=16), txt_total_final], alignment="spaceBetween"),
+            ft.Row([
+                ft.Text("Sinal Pago:", size=14, color=ft.colors.GREY_700), 
+                txt_sinal
+            ], alignment="spaceBetween", vertical_alignment="center"),
+            ft.Container(height=10),
+            
+            ft.Container(
+                content=txt_falta_pagar, 
+                alignment=ft.alignment.center, # Alinhamento corrigido
+                bgcolor=ft.colors.GREY_100, padding=10, border_radius=8
+            ),
+            
+            ft.Container(height=10),
+            ft.ElevatedButton(
+                "CONCLUIR VENDA", 
+                on_click=concluir_venda, 
+                height=60, 
+                width=float('inf'),
+                style=ft.ButtonStyle(bgcolor=ft.colors.GREEN_600, color="white", shape=ft.RoundedRectangleBorder(radius=10), elevation=5),
+                content=ft.Row([ft.Icon(ft.Icons.CHECK, size=30), ft.Text("FINALIZAR", size=18, weight="bold")], alignment="center")
+            )
+        ], scroll=ft.ScrollMode.AUTO) # Scroll adicionado aqui!
+    )
+
+    # --- LAYOUT FINAL ORGANIZADO ---
+    coluna_esquerda = ft.Column([
+        card_cliente,
+        ft.Container(height=5),
+        card_produto,
+        ft.Container(height=5),
+        card_detalhes
+    ], spacing=15, scroll=ft.ScrollMode.AUTO)
+
+    return ft.Container(
+        padding=20, 
+        bgcolor=COR_FUNDO, 
+        expand=True,
+        content=ft.Row([
+            ft.Container(coluna_esquerda, expand=3), # 60% da tela
+            ft.Container(width=20), # Espaçamento
+            ft.Container(coluna_direita, expand=2)   # 40% da tela
+        ], vertical_alignment="start", spacing=0)
+    )

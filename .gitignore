@@ -2,7 +2,15 @@
 venv/
 .env
 
-# Ignorar banco de dados local e cache
+# Ignorar banco de dados local
 *.db
+gestaopro_2026.db
+
+# Ignorar cache do Python
 __pycache__/
 *.pyc
+
+# Ignorar arquivos gerados pelo sistema (IMPORTANTE)
+os_pdfs/
+temp_img/
+assets/config/

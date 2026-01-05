@@ -11,6 +11,19 @@ Base = declarative_base()
 def get_session():
     return Session()
 
+# --- TABELAS DE CONFIGURAÇÃO ---
+class Setor(Base):
+    __tablename__ = 'setores'
+    id = Column(Integer, primary_key=True)
+    nome = Column(String, unique=True, nullable=False)
+
+class StatusOS(Base):
+    __tablename__ = 'status_os'
+    id = Column(Integer, primary_key=True)
+    nome = Column(String, unique=True, nullable=False)
+    cor = Column(String, default="blue") 
+    ordem = Column(Integer, default=0) # NOVO: Para ordenar as colunas no Kanban
+
 # --- TABELAS DE SISTEMA ---
 class Empresa(Base):
     __tablename__ = 'empresa_config'
@@ -18,17 +31,26 @@ class Empresa(Base):
     nome_fantasia = Column(String, default="Minha Gráfica")
     cnpj = Column(String, default="")
     endereco = Column(String, default="")
+    cep = Column(String, default="")
     telefone = Column(String, default="")
     caminho_logo = Column(String, default="") 
     caminho_icon = Column(String, default="") 
     cor_primaria = Column(String, default="BLUE")
+    senha_admin_reset = Column(String, default="admin123") # NOVO: Para reset de fábrica
 
 class Usuario(Base):
     __tablename__ = 'usuarios'
     id = Column(Integer, primary_key=True)
     nome = Column(String)
     usuario = Column(String, unique=True, nullable=False)
-    senha_hash = Column(String, nullable=False) 
+    senha_hash = Column(String, nullable=False)
+    is_admin = Column(Boolean, default=False)
+    is_designer = Column(Boolean, default=False)
+    can_register = Column(Boolean, default=False)
+    can_delete = Column(Boolean, default=False)
+    view_dashboard = Column(Boolean, default=False)
+    view_financeiro = Column(Boolean, default=False)
+    manage_stock = Column(Boolean, default=False)
 
 # --- TABELAS DE NEGÓCIO ---
 class Cliente(Base):
@@ -47,7 +69,7 @@ class ProdutoServico(Base):
     nome = Column(String, nullable=False)
     categoria = Column(String) 
     preco_venda = Column(Float)
-    preco_revenda = Column(Float, default=0.0) # <--- NOVO CAMPO
+    preco_revenda = Column(Float, default=0.0)
     unidade = Column(String) 
 
 class OrdemServico(Base):
@@ -55,9 +77,13 @@ class OrdemServico(Base):
     id = Column(Integer, primary_key=True)
     cliente_id = Column(Integer, ForeignKey('clientes.id'))
     data_criacao = Column(DateTime, default=datetime.datetime.now)
-    data_entrega = Column(String) # <--- NOVO CAMPO
-    is_urgente = Column(Boolean, default=False) # <--- NOVO CAMPO
+    data_entrega = Column(String)
+    is_urgente = Column(Boolean, default=False)
+    
+    # Status agora é controlado, mas salvamos o nome (string) para facilitar leitura
     status = Column(String, default="Fila") 
+    setor_atual = Column(String, default="Atendimento")
+    
     valor_total = Column(Float)
     valor_pago = Column(Float, default=0.0)
     motivo = Column(String) 
@@ -99,4 +125,35 @@ class MovimentacaoEstoque(Base):
     observacao = Column(String)
     material = relationship("Material", back_populates="movimentacoes")
 
+# --- CRIAÇÃO E INICIALIZAÇÃO DE DADOS PADRÃO ---
 Base.metadata.create_all(engine)
+
+def inicializar_banco():
+    """Cria dados essenciais se o banco estiver vazio (First Run)"""
+    session = Session()
+    
+    # 1. Configuração Inicial da Empresa
+    if not session.query(Empresa).first():
+        session.add(Empresa(nome_fantasia="Sua Gráfica Aqui", telefone="(00) 0000-0000"))
+    
+    # 2. Status Padrão (Se não existir nenhum)
+    if not session.query(StatusOS).first():
+        status_padrao = [
+            StatusOS(nome="Fila", cor="blue", ordem=1),
+            StatusOS(nome="Impressão", cor="orange", ordem=2),
+            StatusOS(nome="Acabamento", cor="amber", ordem=3),
+            StatusOS(nome="Expedição", cor="purple", ordem=4),
+            StatusOS(nome="Entregue", cor="green", ordem=5),
+        ]
+        session.add_all(status_padrao)
+    
+    # 3. Setores Padrão
+    if not session.query(Setor).first():
+        setores = [Setor(nome="Atendimento"), Setor(nome="Produção"), Setor(nome="Acabamento")]
+        session.add_all(setores)
+        
+    session.commit()
+    session.close()
+
+# Executa a verificação sempre que importar o banco
+inicializar_banco()

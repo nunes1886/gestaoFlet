@@ -1,72 +1,44 @@
 # 🟦 GestãoPro - Sistema para Gráficas
 
-Sistema de gestão desktop desenvolvido em **Python** e **Flet**, focado no controle de pequenas gráficas e comunicação visual.
+Sistema de gestão desktop desenvolvido em **Python** e **Flet**, focado no controle de pequenas gráficas e comunicação visual. O sistema oferece autonomia total ao administrador para personalizar fluxos de trabalho e identidade visual.
 
 ## 🚀 Tecnologias Usadas
 
-- **Linguagem:** Python 3.12+
+- **Linguagem:** Python 3.10+
 - **Interface Gráfica:** Flet (Flutter para Python)
 - **Banco de Dados:** SQLite
 - **ORM:** SQLAlchemy
+- **Relatórios:** FPDF2 (Geração de PDFs)
 
 ## ✨ Funcionalidades
 
-- **Dashboard:** Visão geral de vendas e financeiro.
-- **Vendas (PDV):**
+- **🖥️ Dashboard:** Visão geral de vendas e financeiro.
+- **🛒 Vendas (PDV):**
   - Busca de clientes em tempo real.
   - Cálculo automático de orçamento (m² e unidades).
   - Formatação inteligente de telefone (WhatsApp).
-- **Gestão de Clientes:**
-  - Cadastro com validação de CPF/CNPJ.
-  - Máscaras de input automáticas.
-- **Produção:** Controle de status (Fila, Impressão, Acabamento).
-- **Estoque:** Controle de entrada/saída com alertas visuais.
-- **Financeiro:** Fluxo de caixa e contas a receber.
+  - Geração automática de Recibo/OS em PDF com a logo da empresa.
+- **⚙️ Configurações (NOVO):**
+  - **Identidade Visual:** Upload de Logo e Favicon direto pelo sistema.
+  - **Dados da Empresa:** Alteração de CNPJ, Endereço e Telefone refletem no PDF.
+  - **Kanban Dinâmico:** Crie, edite e escolha cores para os status de produção.
+  - **Setores:** Cadastre locais de produção (Impressão, Acabamento, etc.).
+- **🏭 Produção (Kanban):**
+  - Visualização de cards coloridos.
+  - Filtros por "Produção" e "Histórico".
+  - Link direto para WhatsApp do cliente com resumo do pedido.
+- **👥 Gestão de Clientes:** Cadastro e validação.
+- **📦 Estoque:** Controle básico de materiais.
 
 ---
 
-## 📦 Como rodar este projeto em outro PC
+## 📦 Como rodar este projeto
 
 Siga os passos abaixo para baixar e configurar o projeto do zero:
 
 ### 1. Clonar o repositório
-'''bash
+
+```bash
 git clone [https://github.com/nunes1886/gestaoFlet.git](https://github.com/nunes1886/gestaoFlet.git)
 cd gestaoFlet
-
-### 2. Criar e ativar o Ambiente Virtual
-É recomendável usar um ambiente virtual para não conflitar bibliotecas.
-
-No Windows:
-'''Bash
-
-python -m venv venv
-.\venv\Scripts\activate
-
-No Linux/Mac:
-'''Bash
-
-python3 -m venv venv
-source venv/bin/activate
-
-### 3. Instalar as dependências
-'''Bash
-
-pip install -r requirements.txt
-### 4. Configurar o Banco de Dados
-Na primeira vez, rode este script para criar as tabelas:
-
-'''Bash
-
-python reset_banco.py
-### 5. Rodar o Sistema
-'''Bash
-
-python main.py
-👤 Usuário Padrão (Admin)
-Caso o sistema peça login na primeira execução:
-
-Usuário: admin
-Senha: admin123
-
-Desenvolvido por [Gledson_Nunes]
+```
