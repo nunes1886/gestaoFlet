@@ -1,16 +1,27 @@
-# Ignorar ambiente virtual
+# Ambiente Virtual
 venv/
 .env
 
-# Ignorar banco de dados local
+# Banco de Dados
 *.db
-gestaopro_2026.db
+*.sqlite3
 
-# Ignorar cache do Python
+# Compilação Python
 __pycache__/
 *.pyc
 
-# Ignorar arquivos gerados pelo sistema (IMPORTANTE)
-os_pdfs/
-temp_img/
-assets/config/
+# Arquivos do PyInstaller (NOVO - Importante)
+build/
+dist/
+*.spec
+
+# Pastas de Mídia/Temporárias (Ignora o conteúdo, mas mantém a pasta se tiver .gitkeep)
+os_pdfs/*
+!os_pdfs/.gitkeep
+temp_img/*
+!temp_img/.gitkeep
+relatorios/*
+!relatorios/.gitkeep
+assets/artes_finais/*
+!assets/artes_finais/.gitkeep
+assets/config/*
