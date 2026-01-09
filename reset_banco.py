@@ -1,6 +1,7 @@
 import os
 import hashlib
-from src.database.database import Base, engine, Session, Usuario, ProdutoServico, Cliente, Material, Empresa, Setor, StatusOS, DATABASE_URL
+# ADICIONEI: ChatMensagem na importação abaixo
+from src.database.database import Base, engine, Session, Usuario, ProdutoServico, Cliente, Material, Empresa, Setor, StatusOS, DATABASE_URL, ChatMensagem
 
 def resetar_tudo():
     print("--- INICIANDO RESET DO BANCO ---")
@@ -17,17 +18,23 @@ def resetar_tudo():
             print(f"❌ Erro ao apagar banco: {e}. Feche o app e tente de novo.")
             return
     
-    print("🔨 Criando tabelas...")
+    print("🔨 Criando tabelas (Incluindo Chat)...")
     Base.metadata.create_all(engine)
     session = Session()
 
     print("👤 Criando Admin Master...")
     hash_senha = hashlib.sha256("admin".encode()).hexdigest()
     
+    # Atualizei as permissões para incluir tudo
     admin = Usuario(
         nome="Administrador", usuario="admin", senha_hash=hash_senha,
-        is_admin=True, is_designer=True, can_register=True, can_delete=True, 
-        view_dashboard=True, view_financeiro=True, manage_stock=True
+        is_admin=True, 
+        is_designer=True, 
+        can_register=True, 
+        can_delete=True, 
+        view_dashboard=True, 
+        view_financeiro=True, 
+        manage_stock=True
     )
     session.add(admin)
 
@@ -36,18 +43,29 @@ def resetar_tudo():
     # Setores (Locais físicos)
     session.add_all([
         Setor(nome="Atendimento"),
+        Setor(nome="Criação/Design"), # Adicionei este
         Setor(nome="Impressão"),
         Setor(nome="Acabamento"),
         Setor(nome="Expedição")
     ])
     
-    # Status (Colunas do Kanban) - AQUI ESTÁ A MUDANÇA (ordem=X)
+    # Status (ATUALIZADO PARA O FLUXO COMPLETO QUE CRIAMOS)
     session.add_all([
-        StatusOS(nome="Fila", cor="grey", ordem=1),
-        StatusOS(nome="Impressão", cor="blue", ordem=2),     # Alterei "Rodando" para "Impressão" (padrão de mercado)
-        StatusOS(nome="Acabamento", cor="orange", ordem=3),
-        StatusOS(nome="Expedição", cor="purple", ordem=4),
-        StatusOS(nome="Entregue", cor="green", ordem=5)      # Importante para a aba de histórico
+        # 1. Financeiro / Bloqueio
+        StatusOS(nome="Aguardando Pagamento", cor="red", ordem=0),
+        
+        # 2. Design (Para o Kanban de Criação)
+        StatusOS(nome="Criando Arte", cor="purple", ordem=1),
+        StatusOS(nome="Aprovação", cor="orange", ordem=2),
+        
+        # 3. Produção (Para o Painel de Produção)
+        StatusOS(nome="Fila", cor="grey", ordem=3),
+        StatusOS(nome="Impressão", cor="blue", ordem=4),
+        StatusOS(nome="Acabamento", cor="amber", ordem=5),
+        
+        # 4. Finalização
+        StatusOS(nome="Entregue", cor="green", ordem=6),
+        StatusOS(nome="Cancelado", cor="black", ordem=7)
     ])
 
     print("🏢 Dados básicos da empresa...")
@@ -62,7 +80,7 @@ def resetar_tudo():
 
     session.commit()
     session.close()
-    print("✅ TUDO PRONTO! Permissões, Workflow e Ordem do Kanban criados.")
+    print("✅ TUDO PRONTO! Tabela de Chat criada e Status atualizados.")
 
 if __name__ == "__main__":
     resetar_tudo()

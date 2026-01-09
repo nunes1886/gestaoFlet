@@ -6,7 +6,12 @@ import sys
 import os
 import warnings
 import datetime
-from datetime import date, timedelta # Imports essenciais para datas
+from datetime import date, timedelta
+
+# --- CORREÇÃO DO ERRO NO --NOCONSOLE (Para .exe) ---
+if sys.stdout is None: sys.stdout = open(os.devnull, "w")
+if sys.stderr is None: sys.stderr = open(os.devnull, "w")
+# ---------------------------------------------------
 
 # VIEWS
 from src.views.criacao import ViewCriacao
@@ -18,6 +23,7 @@ from src.views.clientes import ViewClientes
 from src.views.configuracao import ViewConfiguracao
 from src.views.relatorio_dia import ViewRelatorioDia
 from src.views.funcionarios import ViewFuncionarios
+from src.views.chat import ViewChat
 from src.views.arquivo_morto import ViewArquivoMorto
 
 warnings.filterwarnings("ignore")
@@ -92,6 +98,7 @@ def main(page: ft.Page):
         elif nome_tela == "Financeiro": area_conteudo.content = ViewFinanceiro(page)
         elif nome_tela == "Relatorios": area_conteudo.content = ViewRelatorioDia(page)
         elif nome_tela == "Equipe": area_conteudo.content = ViewFuncionarios(page)
+        elif nome_tela == "Chat": area_conteudo.content = ViewChat(page)
         elif nome_tela == "Configurações": area_conteudo.content = ViewConfiguracao(page)
         elif nome_tela == "Arquivo": area_conteudo.content = ViewArquivoMorto(page)
 
@@ -121,7 +128,9 @@ def main(page: ft.Page):
             itens.append(item_menu(ft.Icons.PEOPLE, "Clientes", "Clientes"))
         if perms.get("designer") or perms.get("admin"):
             itens.append(item_menu(ft.Icons.BRUSH, "Criação", "Criação"))
+            # Pode colocar visível para todos
         itens.append(item_menu(ft.Icons.PRECISION_MANUFACTURING, "Produção", "Produção"))
+        itens.append(item_menu(ft.Icons.CHAT, "Chat Interno", "Chat"))
         
         if perms.get("estoque"): itens.append(item_menu(ft.Icons.INVENTORY_2, "Estoque", "Estoque"))
         if perms.get("ver_dash"):
@@ -141,27 +150,22 @@ def main(page: ft.Page):
                 ft.Divider(color=ft.Colors.WHITE24, height=1), ft.Container(height=20), menu_coluna
             ], scroll=ft.ScrollMode.AUTO))
 
-    # --- DASHBOARD REAL (COM CALENDÁRIO) ---
+    # --- DASHBOARD REAL ---
     def criar_dashboard_content():
-        # Limpa o overlay para não acumular datepickers antigos
         page.overlay.clear()
         
-        # Datas Iniciais (Padrão: Começo do mês até hoje)
         hoje = datetime.date.today()
         primeiro_dia_mes = datetime.date(hoje.year, hoje.month, 1)
         
-        # Variáveis para guardar a seleção (começam com o padrão)
         data_ini_selecionada = ft.Ref[datetime.date]()
         data_fim_selecionada = ft.Ref[datetime.date]()
         data_ini_selecionada.current = primeiro_dia_mes
         data_fim_selecionada.current = hoje
 
-        # Referencias visuais
         ref_total_vendas = ft.Text("0", size=26, weight="bold", color="white")
         ref_producao = ft.Text("0", size=26, weight="bold", color="white")
         ref_entregues = ft.Text("0", size=26, weight="bold", color="white")
         
-        # Definição do Gráfico
         ref_grafico = ft.BarChart(
             bar_groups=[],
             border=ft.border.all(1, ft.Colors.GREY_200),
@@ -194,10 +198,8 @@ def main(page: ft.Page):
 
                 session = get_session()
                 
-                # Query Base filtrada
                 query_base = session.query(OrdemServico).filter(OrdemServico.data_criacao >= dt_ini, OrdemServico.data_criacao <= dt_fim)
                 
-                # 1. Totais
                 total = query_base.count()
                 prod = query_base.filter(OrdemServico.status.in_(['Impressão', 'Acabamento', 'Fila'])).count()
                 entregues = query_base.filter_by(status='Entregue').count()
@@ -206,7 +208,6 @@ def main(page: ft.Page):
                 ref_producao.value = str(prod)
                 ref_entregues.value = str(entregues)
 
-                # 2. Gráfico
                 vendas_periodo = query_base.all()
                 contagem_dias = {0:0, 1:0, 2:0, 3:0, 4:0, 5:0}
                 
@@ -233,7 +234,7 @@ def main(page: ft.Page):
             except Exception as ex:
                 print(f"Erro Dash: {ex}")
 
-        # --- LÓGICA DO DATEPICKER (CALENDÁRIO) ---
+        # --- LÓGICA DO DATEPICKER ---
         def ao_mudar_data_inicio(e):
             if e.control.value:
                 data_ini_selecionada.current = e.control.value.date()
@@ -246,7 +247,6 @@ def main(page: ft.Page):
                 btn_data_final.text = e.control.value.strftime("%d/%m/%Y")
                 btn_data_final.update()
         
-        # Componentes DatePicker
         date_picker_inicio = ft.DatePicker(
             first_date=datetime.datetime(2023, 1, 1),
             last_date=datetime.datetime(2030, 12, 31),
@@ -268,7 +268,6 @@ def main(page: ft.Page):
         page.overlay.append(date_picker_inicio)
         page.overlay.append(date_picker_final)
 
-        # Botões que abrem o calendário
         btn_data_inicio = ft.ElevatedButton(
             text=primeiro_dia_mes.strftime("%d/%m/%Y"),
             icon=ft.Icons.CALENDAR_MONTH,
@@ -282,9 +281,7 @@ def main(page: ft.Page):
             style=ft.ButtonStyle(bgcolor="white", color="black"),
             on_click=lambda _: date_picker_final.pick_date()
         )
-        # ------------------------------------------
 
-        # Componente Card
         def card_topo_colorido_ref(titulo, ref_valor, icone, cores_gradiente):
             return ft.Container(
                 content=ft.Row([
@@ -310,7 +307,7 @@ def main(page: ft.Page):
 
         btn_filtrar = ft.ElevatedButton("Aplicar Filtro", icon=ft.Icons.FILTER_LIST, on_click=atualizar_dashboard, bgcolor=ft.Colors.BLUE_800, color="white", height=40)
 
-        # Função Gerar PDF
+        # Função Gerar PDF (Simples do Dash)
         def gerar_pdf(e):
             atualizar_dashboard()
             try:
@@ -441,4 +438,4 @@ def main(page: ft.Page):
     tela_login()
 
 if __name__ == "__main__":
-    ft.app(target=main, assets_dir="assets", view=ft.WEB_BROWSER)
+    ft.app(target=main, assets_dir="assets") # CORRIGIDO: Sem ft.WEB_BROWSER

@@ -22,7 +22,7 @@ class StatusOS(Base):
     id = Column(Integer, primary_key=True)
     nome = Column(String, unique=True, nullable=False)
     cor = Column(String, default="blue") 
-    ordem = Column(Integer, default=0) # NOVO: Para ordenar as colunas no Kanban
+    ordem = Column(Integer, default=0) 
 
 # --- TABELAS DE SISTEMA ---
 class Empresa(Base):
@@ -36,7 +36,7 @@ class Empresa(Base):
     caminho_logo = Column(String, default="") 
     caminho_icon = Column(String, default="") 
     cor_primaria = Column(String, default="BLUE")
-    senha_admin_reset = Column(String, default="admin123") # NOVO: Para reset de fábrica
+    senha_admin_reset = Column(String, default="admin123")
 
 class Usuario(Base):
     __tablename__ = 'usuarios'
@@ -51,6 +51,20 @@ class Usuario(Base):
     view_dashboard = Column(Boolean, default=False)
     view_financeiro = Column(Boolean, default=False)
     manage_stock = Column(Boolean, default=False)
+
+# --- NOVO: TABELA DE CHAT ---
+class ChatMensagem(Base):
+    __tablename__ = 'chat_mensagens'
+    
+    id = Column(Integer, primary_key=True)
+    remetente_id = Column(Integer, ForeignKey('usuarios.id'))
+    destinatario_id = Column(Integer, ForeignKey('usuarios.id'), nullable=True) # Se Null, é msg Geral
+    mensagem = Column(String)
+    data_envio = Column(DateTime, default=datetime.datetime.now)
+    
+    # Relacionamentos para saber quem mandou
+    remetente = relationship("Usuario", foreign_keys=[remetente_id])
+    destinatario = relationship("Usuario", foreign_keys=[destinatario_id])
 
 # --- TABELAS DE NEGÓCIO ---
 class Cliente(Base):
@@ -80,7 +94,6 @@ class OrdemServico(Base):
     data_entrega = Column(String)
     is_urgente = Column(Boolean, default=False)
     
-    # Status agora é controlado, mas salvamos o nome (string) para facilitar leitura
     status = Column(String, default="Fila") 
     setor_atual = Column(String, default="Atendimento")
     
