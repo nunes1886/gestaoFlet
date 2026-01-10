@@ -262,8 +262,11 @@ def ViewArquivoMorto(page):
     def abrir_edicao(os_obj):
         id_editando.current = os_obj.id
         txt_edit_cliente.value = os_obj.cliente.nome_empresa if os_obj.cliente else "Consumidor"
-        txt_edit_total.value = str(os_obj.valor_total or 0.0)
-        txt_edit_pago.value = str(os_obj.valor_pago or 0.0)
+        valor_total = os_obj.valor_total or 0.0
+        valor_pago = os_obj.valor_pago or 0.0
+        
+        txt_edit_total.value = f"{valor_total:.2f}" # Mostra apenas 2 casas
+        txt_edit_pago.value = f"{valor_pago:.2f}"   # Mostra apenas 2 casas
         dd_edit_status.value = os_obj.status
         
         page.dialog = dlg_editar

@@ -145,10 +145,16 @@ def main(page: ft.Page):
 
         menu_coluna.controls = itens
 
-        return ft.Container(width=260, bgcolor="#263238", padding=10, content=ft.Column([
+        # AQUI MANTENHO WIDTH FIXO PARA NÃO FICAR GIGANTE
+        return ft.Container(
+            width=260, 
+            bgcolor="#263238", 
+            padding=10, 
+            content=ft.Column([
                 ft.Container(padding=20, content=ft.Column([header_content, ft.Container(height=10), ft.Text(nome_menu[:20], size=18, weight="bold", color=ft.Colors.WHITE, text_align="center")], horizontal_alignment="center")),
                 ft.Divider(color=ft.Colors.WHITE24, height=1), ft.Container(height=20), menu_coluna
-            ], scroll=ft.ScrollMode.AUTO))
+            ], scroll=ft.ScrollMode.AUTO)
+        )
 
     # --- DASHBOARD REAL ---
     def criar_dashboard_content():
@@ -385,7 +391,14 @@ def main(page: ft.Page):
         else:
             area_conteudo.content = ViewProducao(page)
 
-        page.add(ft.Row([menu, area_conteudo], expand=True, spacing=0))
+        # AQUI ADICIONEI O 'vertical_alignment=ft.CrossAxisAlignment.STRETCH'
+        # Isso obriga o menu (fundo preto) a esticar até o fim da tela
+        page.add(ft.Row(
+            [menu, area_conteudo], 
+            expand=True, 
+            spacing=0, 
+            vertical_alignment=ft.CrossAxisAlignment.STRETCH
+        ))
         page.update()
 
     def tela_login():
